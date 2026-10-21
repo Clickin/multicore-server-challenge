@@ -8,6 +8,9 @@ I benchmarked C#, Node, Java, Rust, Python and Go, each with its most common fra
 **Now it's your turn: implement the same API in any language and framework, make it as fast as you can, and I'll
 benchmark it on the same boxes. Get to a million on 16 cores, then try it on 8, and if you can, on 4.**
 
+The boxes are [Synteq](https://synteq.com/arjay) VPSs. To test on the same hardware, sign up through
+[synteq.com/arjay](https://synteq.com/arjay) and you get **$20 of free credit**.
+
 ## What's here
 
 | | |
