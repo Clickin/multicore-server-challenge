@@ -59,6 +59,11 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client jq curl openssl
           node --version
+      - name: postgres max_connections = 600 (as on the database box)
+        run: |
+          psql -qX -d postgres -c "ALTER SYSTEM SET max_connections = 600"
+          docker restart "$(docker ps -q --filter ancestor=postgres:18)"
+          until pg_isready -q; do sleep 1; done
       - name: seed
         run: bash seed/make-seed.sh
       - name: install.sh
