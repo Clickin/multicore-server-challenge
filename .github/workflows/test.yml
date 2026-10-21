@@ -1,0 +1,67 @@
+# Runs every submission (and example) a pull request adds or changes through test/run.sh on a clean Ubuntu 24.04,
+# against Postgres 18 in a service container.
+name: test submissions
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:   # re-tests every submission and example
+permissions:
+  contents: read
+
+jobs:
+  find:
+    runs-on: ubuntu-24.04
+    outputs:
+      dirs: ${{ steps.dirs.outputs.dirs }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: dirs
+        run: |
+          all() { ls -d submissions/*/ examples/*/ 2>/dev/null | sed 's#/$#/x#'; }
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          elif [ "${{ github.event_name }}" = push ] && git rev-parse -q --verify HEAD~1 >/dev/null; then
+            changed=$(git diff --name-only HEAD~1 HEAD)
+          else
+            changed=$(all)
+          fi
+          # a change outside submissions/ and examples/ (spec, tests, seed) re-tests everything
+          if echo "$changed" | grep -qvE '^(submissions|examples)/'; then changed=$(all); fi
+          dirs=$(echo "$changed" | awk -F/ '($1=="submissions" || $1=="examples") && NF>2 {print $1"/"$2}' | sort -u | while read -r d; do [ -d "$d" ] && echo "$d"; done)
+          echo "dirs=$(echo "$dirs" | jq -R . | jq -sc 'map(select(length>0))')" >> "$GITHUB_OUTPUT"
+          echo "testing: $dirs"
+
+  test:
+    needs: find
+    if: needs.find.outputs.dirs != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJson(needs.find.outputs.dirs) }}
+    services:
+      postgres:
+        image: postgres:18
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client jq curl openssl
+          node --version
+      - name: seed
+        run: bash seed/make-seed.sh
+      - name: install.sh
+        run: sudo bash ${{ matrix.dir }}/install.sh
+      - name: build, start, test
+        run: bash test/run.sh ${{ matrix.dir }}

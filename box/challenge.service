@@ -1,0 +1,15 @@
+# Your server on the app box. /opt/challenge/current = your folder (built with build.sh as user challenge);
+# /etc/challenge/env holds DATABASE_URL, JWT_SECRET, HOST, PORT, EXTRA_PORT (SPEC.md, runtime contract).
+# Not restarted if it crashes (rule 9).
+[Unit]
+Description=million users challenge submission
+After=network-online.target
+
+[Service]
+User=challenge
+WorkingDirectory=/opt/challenge/current
+EnvironmentFile=/etc/challenge/env
+ExecStart=/bin/bash /opt/challenge/current/start.sh
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+LimitNOFILE=2097152
+Restart=no

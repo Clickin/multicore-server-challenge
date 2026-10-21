@@ -1,0 +1,21 @@
+[package]
+name = "feed-api"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "signal", "time"] }
+tower-http = { version = "0.6", features = ["compression-gzip"] }
+# Postgres driver; no TLS feature (the database is on the private network), chrono for TIMESTAMPTZ.
+sqlx = { version = "0.9", default-features = false, features = ["postgres", "runtime-tokio", "chrono", "derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# jsonwebtoken 10+ requires picking a crypto backend; rust_crypto is pure Rust (no C toolchain/cmake).
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

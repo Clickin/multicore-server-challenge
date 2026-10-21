@@ -1,0 +1,19 @@
+{
+  "name": "std-node-pg",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Feed API: Node 22 + Fastify 5 + pg (node-postgres) Pool, node:cluster one worker per core",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@fastify/compress": "9.2.2",
+    "fast-jwt": "6.3.5",
+    "fastify": "5.12.7",
+    "pg": "8.23.1"
+  }
+}
