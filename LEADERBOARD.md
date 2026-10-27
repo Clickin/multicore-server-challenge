@@ -42,32 +42,33 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | 36 | **44,000** | [kotlin-ktor-canleon](submissions/kotlin-ktor-canleon) | [#29](https://github.com/arjaythedev/multicore-server-challenge/pull/29) @canleon | direct | 10,948 | 496 | 664 | 45% / 49% |  |
 | 37 | **43,000** | [rust-axum-xalva98](submissions/rust-axum-xalva98) | [#63](https://github.com/arjaythedev/multicore-server-challenge/pull/63) @xalva98 | direct | 11,264 | 98 | 217 | 28% / 61% |  |
 | 38 | **40,000** | [purebasic-epoll-ALharchi](submissions/purebasic-epoll-ALharchi) | [#41](https://github.com/arjaythedev/multicore-server-challenge/pull/41) @ALharchi | direct | 10,538 | 121 | 356 | 20% / 62% |  |
-| 39 | **34,000** | [python-rawsocket-shawal-mbalire](submissions/python-rawsocket-shawal-mbalire) | [#40](https://github.com/arjaythedev/multicore-server-challenge/pull/40) @shawal-mbalire | direct | 8,909 | 218 | 407 | 33% / 50% |  |
-| 40 | **33,000** | [lua-openresty-yar0slav](submissions/lua-openresty-yar0slav) | [#19](https://github.com/arjaythedev/multicore-server-challenge/pull/19) @yar0slav | direct | 8,616 | 432 | 783 | 37% / 49% |  |
-| 41 | **32,000** | [elixir-raw-foovoo](submissions/elixir-raw-foovoo) | [#12](https://github.com/arjaythedev/multicore-server-challenge/pull/12) @FooVoo | direct | 7,999 | 323 | 382 | 37% / 48% |  |
-| 42 | **32,000** | [rust-urus-markk116](submissions/rust-urus-markk116) | [#25](https://github.com/arjaythedev/multicore-server-challenge/pull/25) @Markk116 | direct | 8,313 | 438 | 540 | 27% / 46% |  |
-| 43 | **30,000** | [node-cpp-SaisakthiM](submissions/node-cpp-SaisakthiM) | [#62](https://github.com/arjaythedev/multicore-server-challenge/pull/62) @SaisakthiM | direct | 7,766 | 226 | 343 | 30% / 64% |  |
-| 44 | **28,000** | [pony-stallion-contact-red](submissions/pony-stallion-contact-red) | [#76](https://github.com/arjaythedev/multicore-server-challenge/pull/76) @redvers | direct | 7,335 | 243 | 552 | 42% / 47% |  |
-| 45 | **27,000** | [java-jdk-httpserver-bowbahdoe](submissions/java-jdk-httpserver-bowbahdoe) | [#55](https://github.com/arjaythedev/multicore-server-challenge/pull/55) @bowbahdoe | direct | 7,110 | 127 | 283 | 33% / 60% |  |
-| 46 | **27,000** | [nim-conduit-NioHast](submissions/nim-conduit-NioHast) | [#38](https://github.com/arjaythedev/multicore-server-challenge/pull/38) @NioHast | direct | 7,081 | 209 | 524 | 33% / 49% |  |
-| 47 | **26,000** | [d-vibe-cyrusmsk](submissions/d-vibe-cyrusmsk) | [#17](https://github.com/arjaythedev/multicore-server-challenge/pull/17) @cyrusmsk | direct | 6,854 | 71 | 375 | 31% / 44% |  |
-| 48 | **24,000** | [go example](examples/go) (the video's server) | — | nginx | 6,192 | 483 | 701 | 27% / 47% (+ Nginx 11%) |  |
-| 49 | **23,000** | [d-arsd-cyrusmsk](submissions/d-arsd-cyrusmsk) | [#16](https://github.com/arjaythedev/multicore-server-challenge/pull/16) @cyrusmsk | direct | 5,952 | 373 | 577 | 24% / 66% |  |
-| 50 | **22,000** | [rust example](examples/rust) (the video's server) | — | nginx | 5,734 | 233 | 334 | 25% / 50% (+ Nginx 11%) |  |
-| 51 | **21,000** | [java example](examples/java) (the video's server) | — | nginx | 5,528 | 104 | 182 | 30% / 46% (+ Nginx 11%) |  |
-| 52 | **20,000** | [swift-hummingbird-denizakya](submissions/swift-hummingbird-denizakya) | [#9](https://github.com/arjaythedev/multicore-server-challenge/pull/9) @denizak | nginx | 5,077 | 339 | 400 | 48% / 40% (+ Nginx 10%) |  |
-| 53 | **20,000** | [v-fasthttp-ulises-jeremias](https://github.com/arjaythedev/multicore-server-challenge/pull/2) | [#2](https://github.com/arjaythedev/multicore-server-challenge/pull/2) @ulises-jeremias | direct | 5,193 | 351 | 563 | 12% / 63% | Not merged yet: install.sh fails on a clean box (V's bootstrap `vc` isn't pinned); scored with vc pinned by hand |
-| 54 | **20,000** | [zig-reactor-Chemske](submissions/zig-reactor-Chemske) | [#73](https://github.com/arjaythedev/multicore-server-challenge/pull/73) @Chemske | direct | 5,241 | 318 | 453 | 11% / 30% |  |
-| 55 | **19,000** | [elixir-phoenix-gerbal](submissions/elixir-phoenix-gerbal) | [#72](https://github.com/arjaythedev/multicore-server-challenge/pull/72) @gerbal | direct | 4,985 | 191 | 387 | 50% / 30% |  |
-| 56 | **18,000** | [bun-native-PetarGeorgiev-hash](submissions/bun-native-PetarGeorgiev-hash) | [#26](https://github.com/arjaythedev/multicore-server-challenge/pull/26) @PetarGeorgiev-hash | direct | 4,591 | 296 | 736 | 18% / 33% |  |
-| 57 | **11,000** | [chicken-spiffy-wardjm](submissions/chicken-spiffy-wardjm) | [#44](https://github.com/arjaythedev/multicore-server-challenge/pull/44) @wardjm | nginx | 2,904 | 75 | 172 | 49% / 32% (+ Nginx 7%) |  |
-| 58 | **10,000** | [python example](examples/python) (the video's server) | — | nginx | 2,634 | 82 | 150 | 49% / 25% (+ Nginx 6%) |  |
-| 59 | **10,000** | [ruby-rails-bottrall](submissions/ruby-rails-bottrall) | [#74](https://github.com/arjaythedev/multicore-server-challenge/pull/74) @bottrall | direct | 2,582 | 349 | 650 | 59% / 30% |  |
-| 60 | **8,500** | [ruby-rails-Alex-Bradshaw](submissions/ruby-rails-Alex-Bradshaw) | [#51](https://github.com/arjaythedev/multicore-server-challenge/pull/51) @Alex-Bradshaw | nginx | 2,147 | 484 | 553 | 48% / 31% (+ Nginx 5%) |  |
-| 61 | **8,300** | [csharp-efcore-xeonfx](submissions/csharp-efcore-xeonfx) | [#20](https://github.com/arjaythedev/multicore-server-challenge/pull/20) @XeonFX | direct | 2,108 | 447 | 720 | 19% / 78% |  |
-| 62 | **7,100** | [go-epoll-kamkmgamer](submissions/go-epoll-kamkmgamer) | [#66](https://github.com/arjaythedev/multicore-server-challenge/pull/66) @Kamkmgamer | direct | 1,840 | 413 | 828 | 8% / 87% |  |
-| 63 | **4,300** | [perl-raw-kamkmgamer](submissions/perl-raw-kamkmgamer) | [#68](https://github.com/arjaythedev/multicore-server-challenge/pull/68) @Kamkmgamer | direct | 1,114 | 215 | 315 | 6% / 5% |  |
-| 64 | **1,100** | [perl-mojolicious-denizakya](submissions/perl-mojolicious-denizakya) | [#23](https://github.com/arjaythedev/multicore-server-challenge/pull/23) @denizak | nginx | 287 | 197 | 327 | 8% / 3% (+ Nginx 0%) |  |
+| 39 | **37,000** | [ruby-falcon-bottrall](submissions/ruby-falcon-bottrall) | [#81](https://github.com/arjaythedev/multicore-server-challenge/pull/81) @bottrall | direct | 9,597 | 343 | 637 | 38% / 41% |  |
+| 40 | **34,000** | [python-rawsocket-shawal-mbalire](submissions/python-rawsocket-shawal-mbalire) | [#40](https://github.com/arjaythedev/multicore-server-challenge/pull/40) @shawal-mbalire | direct | 8,909 | 218 | 407 | 33% / 50% |  |
+| 41 | **33,000** | [lua-openresty-yar0slav](submissions/lua-openresty-yar0slav) | [#19](https://github.com/arjaythedev/multicore-server-challenge/pull/19) @yar0slav | direct | 8,616 | 432 | 783 | 37% / 49% |  |
+| 42 | **32,000** | [elixir-raw-foovoo](submissions/elixir-raw-foovoo) | [#12](https://github.com/arjaythedev/multicore-server-challenge/pull/12) @FooVoo | direct | 7,999 | 323 | 382 | 37% / 48% |  |
+| 43 | **32,000** | [rust-urus-markk116](submissions/rust-urus-markk116) | [#25](https://github.com/arjaythedev/multicore-server-challenge/pull/25) @Markk116 | direct | 8,313 | 438 | 540 | 27% / 46% |  |
+| 44 | **30,000** | [node-cpp-SaisakthiM](submissions/node-cpp-SaisakthiM) | [#62](https://github.com/arjaythedev/multicore-server-challenge/pull/62) @SaisakthiM | direct | 7,766 | 226 | 343 | 30% / 64% |  |
+| 45 | **28,000** | [pony-stallion-contact-red](submissions/pony-stallion-contact-red) | [#76](https://github.com/arjaythedev/multicore-server-challenge/pull/76) @redvers | direct | 7,335 | 243 | 552 | 42% / 47% |  |
+| 46 | **27,000** | [java-jdk-httpserver-bowbahdoe](submissions/java-jdk-httpserver-bowbahdoe) | [#55](https://github.com/arjaythedev/multicore-server-challenge/pull/55) @bowbahdoe | direct | 7,110 | 127 | 283 | 33% / 60% |  |
+| 47 | **27,000** | [nim-conduit-NioHast](submissions/nim-conduit-NioHast) | [#38](https://github.com/arjaythedev/multicore-server-challenge/pull/38) @NioHast | direct | 7,081 | 209 | 524 | 33% / 49% |  |
+| 48 | **26,000** | [d-vibe-cyrusmsk](submissions/d-vibe-cyrusmsk) | [#17](https://github.com/arjaythedev/multicore-server-challenge/pull/17) @cyrusmsk | direct | 6,854 | 71 | 375 | 31% / 44% |  |
+| 49 | **24,000** | [go example](examples/go) (the video's server) | — | nginx | 6,192 | 483 | 701 | 27% / 47% (+ Nginx 11%) |  |
+| 50 | **23,000** | [d-arsd-cyrusmsk](submissions/d-arsd-cyrusmsk) | [#16](https://github.com/arjaythedev/multicore-server-challenge/pull/16) @cyrusmsk | direct | 5,952 | 373 | 577 | 24% / 66% |  |
+| 51 | **22,000** | [rust example](examples/rust) (the video's server) | — | nginx | 5,734 | 233 | 334 | 25% / 50% (+ Nginx 11%) |  |
+| 52 | **21,000** | [java example](examples/java) (the video's server) | — | nginx | 5,528 | 104 | 182 | 30% / 46% (+ Nginx 11%) |  |
+| 53 | **20,000** | [swift-hummingbird-denizakya](submissions/swift-hummingbird-denizakya) | [#9](https://github.com/arjaythedev/multicore-server-challenge/pull/9) @denizak | nginx | 5,077 | 339 | 400 | 48% / 40% (+ Nginx 10%) |  |
+| 54 | **20,000** | [v-fasthttp-ulises-jeremias](https://github.com/arjaythedev/multicore-server-challenge/pull/2) | [#2](https://github.com/arjaythedev/multicore-server-challenge/pull/2) @ulises-jeremias | direct | 5,193 | 351 | 563 | 12% / 63% | Not merged yet: install.sh fails on a clean box (V's bootstrap `vc` isn't pinned); scored with vc pinned by hand |
+| 55 | **20,000** | [zig-reactor-Chemske](submissions/zig-reactor-Chemske) | [#73](https://github.com/arjaythedev/multicore-server-challenge/pull/73) @Chemske | direct | 5,241 | 318 | 453 | 11% / 30% |  |
+| 56 | **19,000** | [elixir-phoenix-gerbal](submissions/elixir-phoenix-gerbal) | [#72](https://github.com/arjaythedev/multicore-server-challenge/pull/72) @gerbal | direct | 4,985 | 191 | 387 | 50% / 30% |  |
+| 57 | **18,000** | [bun-native-PetarGeorgiev-hash](submissions/bun-native-PetarGeorgiev-hash) | [#26](https://github.com/arjaythedev/multicore-server-challenge/pull/26) @PetarGeorgiev-hash | direct | 4,591 | 296 | 736 | 18% / 33% |  |
+| 58 | **11,000** | [chicken-spiffy-wardjm](submissions/chicken-spiffy-wardjm) | [#44](https://github.com/arjaythedev/multicore-server-challenge/pull/44) @wardjm | nginx | 2,904 | 75 | 172 | 49% / 32% (+ Nginx 7%) |  |
+| 59 | **10,000** | [python example](examples/python) (the video's server) | — | nginx | 2,634 | 82 | 150 | 49% / 25% (+ Nginx 6%) |  |
+| 60 | **10,000** | [ruby-rails-bottrall](submissions/ruby-rails-bottrall) | [#74](https://github.com/arjaythedev/multicore-server-challenge/pull/74) @bottrall | direct | 2,582 | 349 | 650 | 59% / 30% |  |
+| 61 | **8,500** | [ruby-rails-Alex-Bradshaw](submissions/ruby-rails-Alex-Bradshaw) | [#51](https://github.com/arjaythedev/multicore-server-challenge/pull/51) @Alex-Bradshaw | nginx | 2,147 | 484 | 553 | 48% / 31% (+ Nginx 5%) |  |
+| 62 | **8,300** | [csharp-efcore-xeonfx](submissions/csharp-efcore-xeonfx) | [#20](https://github.com/arjaythedev/multicore-server-challenge/pull/20) @XeonFX | direct | 2,108 | 447 | 720 | 19% / 78% |  |
+| 63 | **7,100** | [go-epoll-kamkmgamer](submissions/go-epoll-kamkmgamer) | [#66](https://github.com/arjaythedev/multicore-server-challenge/pull/66) @Kamkmgamer | direct | 1,840 | 413 | 828 | 8% / 87% |  |
+| 64 | **4,300** | [perl-raw-kamkmgamer](submissions/perl-raw-kamkmgamer) | [#68](https://github.com/arjaythedev/multicore-server-challenge/pull/68) @Kamkmgamer | direct | 1,114 | 215 | 315 | 6% / 5% |  |
+| 65 | **1,100** | [perl-mojolicious-denizakya](submissions/perl-mojolicious-denizakya) | [#23](https://github.com/arjaythedev/multicore-server-challenge/pull/23) @denizak | nginx | 287 | 197 | 327 | 8% / 3% (+ Nginx 0%) |  |
 
 ## Not scored
 
