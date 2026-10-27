@@ -61,10 +61,11 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | 55 | **18,000** | [bun-native-PetarGeorgiev-hash](submissions/bun-native-PetarGeorgiev-hash) | [#26](https://github.com/arjaythedev/multicore-server-challenge/pull/26) @PetarGeorgiev-hash | direct | 4,591 | 296 | 736 | 18% / 33% |  |
 | 56 | **11,000** | [chicken-spiffy-wardjm](submissions/chicken-spiffy-wardjm) | [#44](https://github.com/arjaythedev/multicore-server-challenge/pull/44) @wardjm | nginx | 2,904 | 75 | 172 | 49% / 32% (+ Nginx 7%) |  |
 | 57 | **10,000** | [python example](examples/python) (the video's server) | — | nginx | 2,634 | 82 | 150 | 49% / 25% (+ Nginx 6%) |  |
-| 58 | **8,500** | [ruby-rails-Alex-Bradshaw](submissions/ruby-rails-Alex-Bradshaw) | [#51](https://github.com/arjaythedev/multicore-server-challenge/pull/51) @Alex-Bradshaw | nginx | 2,147 | 484 | 553 | 48% / 31% (+ Nginx 5%) |  |
-| 59 | **8,300** | [csharp-efcore-xeonfx](submissions/csharp-efcore-xeonfx) | [#20](https://github.com/arjaythedev/multicore-server-challenge/pull/20) @XeonFX | direct | 2,108 | 447 | 720 | 19% / 78% |  |
-| 60 | **4,300** | [perl-raw-kamkmgamer](submissions/perl-raw-kamkmgamer) | [#68](https://github.com/arjaythedev/multicore-server-challenge/pull/68) @Kamkmgamer | direct | 1,114 | 215 | 315 | 6% / 5% |  |
-| 61 | **1,100** | [perl-mojolicious-denizakya](submissions/perl-mojolicious-denizakya) | [#23](https://github.com/arjaythedev/multicore-server-challenge/pull/23) @denizak | nginx | 287 | 197 | 327 | 8% / 3% (+ Nginx 0%) |  |
+| 58 | **10,000** | [ruby-rails-bottrall](submissions/ruby-rails-bottrall) | [#74](https://github.com/arjaythedev/multicore-server-challenge/pull/74) @bottrall | direct | 2,582 | 349 | 650 | 59% / 30% |  |
+| 59 | **8,500** | [ruby-rails-Alex-Bradshaw](submissions/ruby-rails-Alex-Bradshaw) | [#51](https://github.com/arjaythedev/multicore-server-challenge/pull/51) @Alex-Bradshaw | nginx | 2,147 | 484 | 553 | 48% / 31% (+ Nginx 5%) |  |
+| 60 | **8,300** | [csharp-efcore-xeonfx](submissions/csharp-efcore-xeonfx) | [#20](https://github.com/arjaythedev/multicore-server-challenge/pull/20) @XeonFX | direct | 2,108 | 447 | 720 | 19% / 78% |  |
+| 61 | **4,300** | [perl-raw-kamkmgamer](submissions/perl-raw-kamkmgamer) | [#68](https://github.com/arjaythedev/multicore-server-challenge/pull/68) @Kamkmgamer | direct | 1,114 | 215 | 315 | 6% / 5% |  |
+| 62 | **1,100** | [perl-mojolicious-denizakya](submissions/perl-mojolicious-denizakya) | [#23](https://github.com/arjaythedev/multicore-server-challenge/pull/23) @denizak | nginx | 287 | 197 | 327 | 8% / 3% (+ Nginx 0%) |  |
 
 ## Not scored
 
