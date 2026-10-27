@@ -65,8 +65,9 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | 59 | **10,000** | [ruby-rails-bottrall](submissions/ruby-rails-bottrall) | [#74](https://github.com/arjaythedev/multicore-server-challenge/pull/74) @bottrall | direct | 2,582 | 349 | 650 | 59% / 30% |  |
 | 60 | **8,500** | [ruby-rails-Alex-Bradshaw](submissions/ruby-rails-Alex-Bradshaw) | [#51](https://github.com/arjaythedev/multicore-server-challenge/pull/51) @Alex-Bradshaw | nginx | 2,147 | 484 | 553 | 48% / 31% (+ Nginx 5%) |  |
 | 61 | **8,300** | [csharp-efcore-xeonfx](submissions/csharp-efcore-xeonfx) | [#20](https://github.com/arjaythedev/multicore-server-challenge/pull/20) @XeonFX | direct | 2,108 | 447 | 720 | 19% / 78% |  |
-| 62 | **4,300** | [perl-raw-kamkmgamer](submissions/perl-raw-kamkmgamer) | [#68](https://github.com/arjaythedev/multicore-server-challenge/pull/68) @Kamkmgamer | direct | 1,114 | 215 | 315 | 6% / 5% |  |
-| 63 | **1,100** | [perl-mojolicious-denizakya](submissions/perl-mojolicious-denizakya) | [#23](https://github.com/arjaythedev/multicore-server-challenge/pull/23) @denizak | nginx | 287 | 197 | 327 | 8% / 3% (+ Nginx 0%) |  |
+| 62 | **7,100** | [go-epoll-kamkmgamer](submissions/go-epoll-kamkmgamer) | [#66](https://github.com/arjaythedev/multicore-server-challenge/pull/66) @Kamkmgamer | direct | 1,840 | 413 | 828 | 8% / 87% |  |
+| 63 | **4,300** | [perl-raw-kamkmgamer](submissions/perl-raw-kamkmgamer) | [#68](https://github.com/arjaythedev/multicore-server-challenge/pull/68) @Kamkmgamer | direct | 1,114 | 215 | 315 | 6% / 5% |  |
+| 64 | **1,100** | [perl-mojolicious-denizakya](submissions/perl-mojolicious-denizakya) | [#23](https://github.com/arjaythedev/multicore-server-challenge/pull/23) @denizak | nginx | 287 | 197 | 327 | 8% / 3% (+ Nginx 0%) |  |
 
 ## Not scored
 
