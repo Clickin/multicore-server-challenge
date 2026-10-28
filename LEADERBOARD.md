@@ -17,12 +17,13 @@ the fewest cores it held a million on.
 
 | # | Submission | PR | Language | Stack | Users held 5 min | 1M on | Scored |
 |---:|---|---|---|---|---:|---|---|
-| 1 | [`csharp`](examples/csharp) (the video's server) | — | C# | ASP.NET Core + Npgsql | 665,000 | — | 2026-10-19 |
-| 2 | [`node`](examples/node) (the video's server) | — | Node | Fastify 5 + node-postgres, `node:cluster` workers | 587,000 | — | 2026-10-19 |
-| 3 | [`rust`](examples/rust) (the video's server) | — | Rust | axum + SQLx | 413,000 | — | 2026-10-19 |
-| 4 | [`java`](examples/java) (the video's server) | — | Java | Spring Boot 3.5 (Tomcat, virtual threads) + HikariCP + pgjdbc | 321,000 | — | 2026-10-19 |
-| 5 | [`go`](examples/go) (the video's server) | — | Go | Gin + pgx/v5 `pgxpool` | 248,000 | — | 2026-10-19 |
-| 6 | [`python`](examples/python) (the video's server) | — | Python | FastAPI on Gunicorn/Uvicorn workers + asyncpg | 213,000 | — | 2026-10-19 |
+| 1 | [`rust-tokio-cknutson12`](submissions/rust-tokio-cknutson12) | [#1](https://github.com/arjaythedev/million-users-challenge/pull/1) | Rust | thread-per-core tokio, hand-written HTTP/1.1, pipelined tokio-postgres | 1,000,000 | 4 cores | 2026-10-28 |
+| 2 | [`csharp`](examples/csharp) (the video's server) | — | C# | ASP.NET Core + Npgsql | 665,000 | — | 2026-10-19 |
+| 3 | [`node`](examples/node) (the video's server) | — | Node | Fastify 5 + node-postgres, `node:cluster` workers | 587,000 | — | 2026-10-19 |
+| 4 | [`rust`](examples/rust) (the video's server) | — | Rust | axum + SQLx | 413,000 | — | 2026-10-19 |
+| 5 | [`java`](examples/java) (the video's server) | — | Java | Spring Boot 3.5 (Tomcat, virtual threads) + HikariCP + pgjdbc | 321,000 | — | 2026-10-19 |
+| 6 | [`go`](examples/go) (the video's server) | — | Go | Gin + pgx/v5 `pgxpool` | 248,000 | — | 2026-10-19 |
+| 7 | [`python`](examples/python) (the video's server) | — | Python | FastAPI on Gunicorn/Uvicorn workers + asyncpg | 213,000 | — | 2026-10-19 |
 
 The six example servers were scored in the video with three borrowed load generators instead of the two above; the
 test, the boxes and the scoring are otherwise the same.
