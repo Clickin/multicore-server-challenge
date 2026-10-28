@@ -5,7 +5,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | # | Users | Submission | PR | Front | req/s | p95 ms | p99 ms | CPU: app / Postgres | Note |
 |--:|--:|---|---|---|--:|--:|--:|---|---|
 | 1 | **130,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#82](https://github.com/arjaythedev/multicore-server-challenge/pull/82) @nickita-khylkouski | direct | 33,335 | 445 | 662 | 23% / 69% |  |
-| 2 | **120,000** | [go-epoll-Bparsons0904](https://github.com/arjaythedev/multicore-server-challenge/pull/95) | [#95](https://github.com/arjaythedev/multicore-server-challenge/pull/95) @Bparsons0904 | direct | 30,928 | 478 | 650 | 25% / 63% |  |
+| 2 | **120,000** | [go-epoll-Bparsons0904](submissions/go-epoll-Bparsons0904) | [#95](https://github.com/arjaythedev/multicore-server-challenge/pull/95) @Bparsons0904 | direct | 30,928 | 478 | 650 | 25% / 63% |  |
 | 3 | **120,000** | [rust-epoll-WorriedArrow](submissions/rust-epoll-WorriedArrow) | [#47](https://github.com/arjaythedev/multicore-server-challenge/pull/47) @WorriedArrow | direct | 30,189 | 433 | 585 | 28% / 60% |  |
 | 4 | **110,000** | [go-epoll-MegaPanchamZ](submissions/go-epoll-MegaPanchamZ) | [#61](https://github.com/arjaythedev/multicore-server-challenge/pull/61) @MegaPanchamZ | direct | 28,339 | 346 | 471 | 27% / 67% |  |
 | 5 | **110,000** | [zig-fourneau-y2kbugger](submissions/zig-fourneau-y2kbugger) | [#53](https://github.com/arjaythedev/multicore-server-challenge/pull/53) @y2kbugger | direct | 28,535 | 251 | 430 | 20% / 59% |  |
