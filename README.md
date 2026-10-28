@@ -120,18 +120,12 @@ Every run starts your server fresh on a fresh copy of the database. A run passes
 **You get three scores: the most users held for 5 minutes on 16 cores, on 8 cores and on 4 cores.** On 8 and 4 cores
 your server, the kernel's network processing and all, gets only those cores. The leaderboard ranks by 16 cores.
 
-The search goes up to **3,000,000 users**. A server that holds the
-maximum shows as that number with "(rig max)": it's the rig's limit, not yours. Past roughly 2–3M users the app
-box's network becomes the wall, so that's where these boxes top out.
+**16 cores is capped at 1,000,000 users**: past that, the one Postgres box (not your server) becomes the limit, so
+holding a million on 16 cores is the top 16-core score, shown as `1,000,000 (max)`. **8 and 4 cores are searched up to
+3,000,000 users**, with your server talking to the same single Postgres box. A score that reaches the search's
+ceiling shows `(max)`.
 
-**The database on 16 cores.** One Postgres box tops out around 1.7–1.8M users with these queries, so on 16 cores
-`DATABASE_URL` points at a [PgDog](https://github.com/pgdogdev/pgdog) proxy in front of the database box and a
-synchronous read replica (a second 16-core box): writes go to the primary, reads are spread over both, and every
-commit is applied on the replica before it returns, so a read never misses a write. Transaction pooling, prepared
-statements and session `SET`s work through it, and your code doesn't change. On 8 and 4 cores `DATABASE_URL` points
-straight at the database box.
-
-A run where a load generator or the database side, not your server, is the limit doesn't count: I add capacity and
+A run where a load generator or the database box, not your server, is the limit doesn't count: I add capacity and
 run it again.
 
 **Pull requests are benchmarked as they come in**, oldest first, and the result goes on the

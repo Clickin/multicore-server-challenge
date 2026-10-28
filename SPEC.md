@@ -9,7 +9,7 @@ Your server reads its config from these environment variables:
 
 | Variable | Value on the benchmark box |
 |---|---|
-| `DATABASE_URL` | `postgres://feed:<password>@<host>:5432/feed`, a fresh copy of `feed_seed` (schema in `schema.sql`). On 8 and 4 cores `<host>` is the database machine; on 16 cores it's a PgDog proxy (transaction pooling) in front of it and a synchronous read replica, see the README's Scoring |
+| `DATABASE_URL` | `postgres://feed:<password>@<db box>:5432/feed`, a fresh copy of `feed_seed` (schema in `schema.sql`) on the database machine |
 | `JWT_SECRET` | `million-users-challenge` |
 | `HOST` | `0.0.0.0` |
 | `PORT`, `EXTRA_PORT` | `80` and `81` |
@@ -17,7 +17,7 @@ Your server reads its config from these environment variables:
 Serve the same API on **both** `HOST:PORT` and `HOST:EXTRA_PORT`, from one server (one process or several, your
 choice), HTTP/1.1 with keep-alive. You serve the internet directly: there is no Nginx in front of you.
 
-- Every simulated user holds its own keep-alive connection, so expect **millions of open connections** (the search goes up to 3,000,000 users), split
+- Every simulated user holds its own keep-alive connection, so expect **millions of open connections** (the search goes up to 3,000,000 users on 8 and 4 cores), split
   evenly over the two ports. (A single port can't take a million: each load generator IP can open only ~64k
   connections to one IP and port.) Users can sit idle on their connection for up to ~40 s between requests, so
   keep idle connections open for at least 75 s.
