@@ -124,7 +124,14 @@ The search goes up to **3,000,000 users**. A server that holds the
 maximum shows as that number with "(rig max)": it's the rig's limit, not yours. Past roughly 2–3M users the app
 box's network becomes the wall, so that's where these boxes top out.
 
-A run where a load generator or the database box, not your server, is the limit doesn't count: I add capacity and
+**The database on 16 cores.** One Postgres box tops out around 1.7–1.8M users with these queries, so on 16 cores
+`DATABASE_URL` points at a [PgDog](https://github.com/pgdogdev/pgdog) proxy in front of the database box and a
+synchronous read replica (a second 16-core box): writes go to the primary, reads are spread over both, and every
+commit is applied on the replica before it returns, so a read never misses a write. Transaction pooling, prepared
+statements and session `SET`s work through it, and your code doesn't change. On 8 and 4 cores `DATABASE_URL` points
+straight at the database box.
+
+A run where a load generator or the database side, not your server, is the limit doesn't count: I add capacity and
 run it again.
 
 **Pull requests are benchmarked as they come in**, oldest first, and the result goes on the

@@ -13,7 +13,8 @@ checked with the 42-check test suite, then started by systemd as `challenge` on 
 run. Two-minute runs climb (each passing run jumps to where its CPU says ~85% would be), then narrow down to within 5%; a 5-minute hold confirms the
 number, stepping down 5% until one passes (p95 under 500 ms, p99 under 1 s, under 1% errors). **Each entry gets the
 most users held for 5 minutes on 16 cores, on 8 and on 4**, searched up to the rig's maximum (3,000,000 users;
-"(rig max)" means it held that and the rig can't push harder). Ranked by 16 cores. `≥` = scored before the search
+"(rig max)" means it held that and the rig can't push harder). Ranked by 16 cores. On 16 cores Postgres runs behind a PgDog proxy with a synchronous read replica, so the database side
+is never the limit; on 8 and 4 cores the server talks to the database box directly. `≥` = scored before the search
 went past a million; a re-run under the current scoring is queued.
 
 | # | Submission | PR | Language | Stack | 16 cores | 8 cores | 4 cores | Scored |

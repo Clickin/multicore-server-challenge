@@ -9,7 +9,7 @@ Your server reads its config from these environment variables:
 
 | Variable | Value on the benchmark box |
 |---|---|
-| `DATABASE_URL` | `postgres://feed:<password>@<db box>:5432/feed`, a fresh copy of `feed_seed` (schema in `schema.sql`) on the database machine |
+| `DATABASE_URL` | `postgres://feed:<password>@<host>:5432/feed`, a fresh copy of `feed_seed` (schema in `schema.sql`). On 8 and 4 cores `<host>` is the database machine; on 16 cores it's a PgDog proxy (transaction pooling) in front of it and a synchronous read replica, see the README's Scoring |
 | `JWT_SECRET` | `million-users-challenge` |
 | `HOST` | `0.0.0.0` |
 | `PORT`, `EXTRA_PORT` | `80` and `81` |
