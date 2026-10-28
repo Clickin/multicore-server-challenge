@@ -63,7 +63,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | 57 | **27,000** | [java-jdk-httpserver-bowbahdoe](submissions/java-jdk-httpserver-bowbahdoe) | [#55](https://github.com/arjaythedev/multicore-server-challenge/pull/55) @bowbahdoe | direct | 7,110 | 127 | 283 | 33% / 60% |  |
 | 58 | **27,000** | [nim-conduit-NioHast](submissions/nim-conduit-NioHast) | [#38](https://github.com/arjaythedev/multicore-server-challenge/pull/38) @NioHast | direct | 7,081 | 209 | 524 | 33% / 49% |  |
 | 59 | **26,000** | [d-vibe-cyrusmsk](submissions/d-vibe-cyrusmsk) | [#17](https://github.com/arjaythedev/multicore-server-challenge/pull/17) @cyrusmsk | direct | 6,854 | 71 | 375 | 31% / 44% |  |
-| 60 | **24,000** | [cpp-drogon-IdkWhatToWriteHereOhManItWasAlreadyUsed](https://github.com/arjaythedev/multicore-server-challenge/pull/94) | [#94](https://github.com/arjaythedev/multicore-server-challenge/pull/94) @IdkWhatToWriteHereOhManItWasAlreadyUsed | direct | 6,324 | 136 | 549 | 34% / 44% |  |
+| 60 | **24,000** | [cpp-drogon-IdkWhatToWriteHereOhManItWasAlreadyUsed](submissions/cpp-drogon-IdkWhatToWriteHereOhManItWasAlreadyUsed) | [#94](https://github.com/arjaythedev/multicore-server-challenge/pull/94) @IdkWhatToWriteHereOhManItWasAlreadyUsed | direct | 6,324 | 136 | 549 | 34% / 44% |  |
 | 61 | **24,000** | [go example](examples/go) (the video's server) | — | nginx | 6,192 | 483 | 701 | 27% / 47% (+ Nginx 11%) |  |
 | 62 | **23,000** | [d-arsd-cyrusmsk](submissions/d-arsd-cyrusmsk) | [#16](https://github.com/arjaythedev/multicore-server-challenge/pull/16) @cyrusmsk | direct | 5,952 | 373 | 577 | 24% / 66% |  |
 | 63 | **22,000** | [rust example](examples/rust) (the video's server) | — | nginx | 5,734 | 233 | 334 | 25% / 50% (+ Nginx 11%) |  |
