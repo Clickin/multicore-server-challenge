@@ -65,7 +65,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | 59 | **24,000** | [go example](examples/go) (the video's server) | — | nginx | 6,192 | 483 | 701 | 27% / 47% (+ Nginx 11%) |  |
 | 60 | **23,000** | [d-arsd-cyrusmsk](submissions/d-arsd-cyrusmsk) | [#16](https://github.com/arjaythedev/multicore-server-challenge/pull/16) @cyrusmsk | direct | 5,952 | 373 | 577 | 24% / 66% |  |
 | 61 | **22,000** | [rust example](examples/rust) (the video's server) | — | nginx | 5,734 | 233 | 334 | 25% / 50% (+ Nginx 11%) |  |
-| 62 | **22,000** | [java-microhttp-bowbahdoe](https://github.com/arjaythedev/multicore-server-challenge/pull/93) | [#93](https://github.com/arjaythedev/multicore-server-challenge/pull/93) @bowbahdoe | nginx | 5,774 | 168 | 301 | 26% / 50% (+ Nginx 12%) |  |
+| 62 | **22,000** | [java-microhttp-bowbahdoe](submissions/java-microhttp-bowbahdoe) | [#93](https://github.com/arjaythedev/multicore-server-challenge/pull/93) @bowbahdoe | nginx | 5,774 | 168 | 301 | 26% / 50% (+ Nginx 12%) |  |
 | 63 | **21,000** | [java example](examples/java) (the video's server) | — | nginx | 5,528 | 104 | 182 | 30% / 46% (+ Nginx 11%) |  |
 | 64 | **20,000** | [swift-hummingbird-denizakya](submissions/swift-hummingbird-denizakya) | [#9](https://github.com/arjaythedev/multicore-server-challenge/pull/9) @denizak | nginx | 5,077 | 339 | 400 | 48% / 40% (+ Nginx 10%) |  |
 | 65 | **20,000** | [v-fasthttp-ulises-jeremias](https://github.com/arjaythedev/multicore-server-challenge/pull/2) | [#2](https://github.com/arjaythedev/multicore-server-challenge/pull/2) @ulises-jeremias | direct | 5,193 | 351 | 563 | 12% / 63% | Not merged yet: install.sh fails on a clean box (V's bootstrap `vc` isn't pinned); scored with vc pinned by hand |
