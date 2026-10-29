@@ -6,7 +6,7 @@
 | Framework | Vert.x Core 5.2.1 `HttpServer` without Vert.x Web, on Netty 4.2.19.Final with native epoll |
 | Postgres driver | Vert.x PostgreSQL client 5.2.1 with prepared statements and pipelining |
 | JSON | A hand-written byte writer for responses. Jackson Core 3.2.3, streaming only, parses request bodies and JWTs |
-| GC | Generational ZGC with a fixed, pre-touched heap |
+| GC | Generational ZGC. The JVM sizes the heap, up to 75% of RAM |
 | Build | Maven 3.9.16 wrapper and the Shade plugin 3.6.1, producing `target/feed.jar` |
 
 ## Running it
@@ -26,7 +26,7 @@ Optional environment variables:
 | `MU_DB_POOL` | `64` | Total Postgres connections, split over the loops, at most 512 |
 | `MU_DB_PIPELINE` | `256` | Queries in flight per Postgres connection |
 | `MU_GZIP_LEVEL` | `1` on 8 or more CPUs, else `0` | gzip level for the feed. `0` turns gzip off |
-| `MU_HEAP` | Half of RAM | Java heap size |
+| `MU_HEAP` | unset, so up to 75% of RAM | Maximum Java heap size, passed as `-Xmx` |
 
 ## Design
 
@@ -53,27 +53,43 @@ and 200 responses skip `setStatusCode`. A feed response allocates about 7 KB les
 `java.time` formatting.
 
 **JVM.** Each of a million connections keeps about 2.7 KB of live objects for the Netty channel, its pipeline and the
-Vert.x connection, about 3 GB in total. These objects are new while users ramp in. ParallelGC and G1 paused for
-140 to 830 ms per young collection at the end of the ramp. ZGC does this work concurrently. On Java 25 and later,
-Netty 4.2 stops using `sun.misc.Unsafe` by default and falls back to `ByteBuffer` and `MemorySegment` access. That
-path adds bounds and session checks to every buffer access and allocates a `DirectByteBuffer` per buffer, which was
-17% of all allocation in a profile. `--sun-misc-unsafe-memory-access=allow` restores the `Unsafe` path.
+Vert.x connection, about 3 GB in total. All of these objects are created while users ramp in. ParallelGC and G1 paused
+for 140 to 830 ms per young collection at the end of the ramp. ZGC does this work concurrently, so it is the collector
+here.
+
+The heap has no fixed size and is not pre-touched. ZGC grows it as needed, up to 75% of RAM. At a million connections on
+a 32 GB machine it committed about 21 GB. An earlier version fixed the heap at half of RAM and pre-touched it. With
+that setting the slowdown after the ramp (see Measurements) lasted longer.
+
+On Java 25 and later, Netty 4.2 stops using `sun.misc.Unsafe` by default and falls back to `ByteBuffer` and
+`MemorySegment` access. That path adds bounds and session checks to every buffer access and allocates a
+`DirectByteBuffer` per buffer, which was 17% of all allocation in a profile. `--sun-misc-unsafe-memory-access=allow`
+restores the `Unsafe` path.
 
 **gzip on 8 or more CPUs.** The server compresses bodies of at least 1,024 bytes, which in practice means the feed,
 at level 1 with a reused `Deflater`. On 4 cores gzip cost more CPU than it saved, so it is off below 8 CPUs.
 
 ## Measurements
 
-I measured on Hetzner Cloud, not on the benchmark boxes. The app ran on a CCX33 (AMD, virtio NIC with one queue)
-with all but 4 CPUs taken offline, and Postgres on a CPX52. Four load generators ran
-`bench/mload -gzip -think-scale 2.5` with a 330 s ramp, about 3,000 new connections per second, and a 5-minute hold.
+I measured on Hetzner Cloud, not on the benchmark machines, so the numbers are only a rough guide. The app ran on a
+CCX33 (AMD, 32 GB, virtio NIC with one queue) with all but 4 CPUs taken offline. Postgres ran on a CPX52. Four load
+generators ran `bench/mload -gzip -think-scale 2.5` with a 330 s ramp, about 3,000 new connections per second, and a
+5-minute hold.
 
-At 4 cores and 1,000,000 users the run did not pass. Once all users were connected, the server handled about 42k
-requests per second at a p95 of about 240 ms and a p99 of about 270 ms, which is the load generators' own floor on
-this setup. It used about 52% of the 4 cores, 20% user time and 32% kernel time. In the 1 to 2 minutes right after
-the ramp, the full request rate, the last connection setups and the GC work on a million new connections overlapped.
-CPU reached about 90% and p95 rose to 2 to 4 s. The best run finished with a p95 of 2.0 s, a p99 of 2.4 s and no
-errors. I did not measure 8 or 16 cores.
+At 4 cores and 1,000,000 users no run passed. The problem is the 1 to 2 minutes right after the ramp. There the full
+request rate, the last connection setups and the GC work on a million new connections overlap. CPU reaches about 90%
+and p95 rises to 2 to 4 s. Once that is over, the server handles about 42k requests per second at a p95 of about
+240 ms and a p99 of about 270 ms. That is the load generators' own floor on this setup. It uses about 52% of the
+4 cores, 20% user time and 32% kernel time.
+
+The best full run used the earlier fixed, pre-touched heap. It finished with a p95 of 2.0 s, a p99 of 2.4 s and no
+errors.
+
+I could not finish a clean 1M run with the current heap setting, because the load generators I had ran out of CPU or
+memory before the server did. One load generator still had headroom while it drove 350,000 users. On it the slowdown
+after the ramp lasted about 20 s (one sample at a p95 of 2.7 s), and p95 was 20 to 35 ms after that. With the fixed
+heap every load generator saw 1 to 2 minutes at 2 to 3 s. This suggests the change helps. It does not show that the
+server passes 1M on 4 cores. I did not measure 8 or 16 cores.
 
 These changes gave no gain at 1M users on 4 cores, so the submission does not use them: the io_uring transport, one
 `SO_REUSEPORT` listener per event loop, batched event-loop wake-ups, 3 event loops instead of 4, and gzip on 4 cores.
