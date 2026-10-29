@@ -54,8 +54,7 @@ buffer of the exact size. It uses no JSON generator and creates no intermediate 
 directly from the `OffsetDateTime` that the driver returns, writes numbers two digits at a time, and bulk-copies
 strings, switching to character-by-character escaping only at the first character that needs it. Header names and
 values are encoded once at startup, `Content-Length` values come from a table, the code reads rows by column index,
-and 200 responses skip `setStatusCode`. A feed response allocates about 7 KB less than it did with Jackson and
-`java.time` formatting.
+and 200 responses skip `setStatusCode`.
 
 **JVM.** Each of a million connections keeps about 2.7 KB of live objects for the Netty channel, its pipeline and the
 Vert.x connection, about 3 GB in total. All of these objects are created while users ramp in. ParallelGC and G1 paused
@@ -89,16 +88,8 @@ At 4 cores and 1,000,000 users the server passed in both runs:
 | 2 | 32,063 | 37.5 ms | 148.1 ms | 804 ms | 0 |
 
 CPU peaked at 95 to 97% at the end of the ramp. During the hold it was 62 to 63%: 17% user time and 45 to 46% kernel
-time. Postgres stayed under 38% CPU and the load generators under 35%. GC logged no allocation stalls.
-
-The flush consolidation on the Postgres connections made the difference. With it turned off (`-Dmu.db-flush-batch=false`)
-and everything else the same, p95 rose to 1 to 3.4 s for about 30 s at the end of the ramp. That run failed with a
-p95 of 288 ms and a p99 of 2.45 s. I did not measure 8 or 16 cores.
-
-These changes gave no gain at 1M users on 4 cores, so the submission does not use them: the io_uring transport, one
-`SO_REUSEPORT` listener per event loop, batched event-loop wake-ups, 3 event loops instead of 4, gzip on 4 cores, and
-group commit for writes. Group commit lowered Postgres CPU from 35% to 33% but raised app CPU from 63% to 65% and the
-p95 of writes from about 40 ms to 54 ms.
+time. Postgres stayed under 38% CPU and the load generators under 35%. GC logged no allocation stalls. I did not
+measure 8 or 16 cores.
 
 ## Checks
 
