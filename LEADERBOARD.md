@@ -16,7 +16,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 | 10 | **100,000** | [c-iouring-aslahtp](submissions/c-iouring-aslahtp) | [#98](https://github.com/arjaythedev/multicore-server-challenge/pull/98) @aslahtp | direct | 25,503 | 475 | 672 | 19% / 60% |  |
 | 11 | **100,000** | [cpp-liburing-mattiasca06](submissions/cpp-liburing-mattiasca06) | [#60](https://github.com/arjaythedev/multicore-server-challenge/pull/60) @mattiasca06 | direct | 25,350 | 349 | 439 | 21% / 72% |  |
 | 12 | **100,000** | [go-epoll-MegaPanchamZ](submissions/go-epoll-MegaPanchamZ) | [#99](https://github.com/arjaythedev/multicore-server-challenge/pull/99) @MegaPanchamZ | direct | 25,796 | 400 | 643 | 23% / 69% |  |
-| 13 | **100,000** | [kotlin-raw-luben93](submissions/kotlin-raw-luben93) | [#48](https://github.com/arjaythedev/multicore-server-challenge/pull/48) @luben93 | direct | 26,184 | 180 | 278 | 19% / 64% |  |
+| 13 | **100,000** | [kotlin-raw-luben93](submissions/kotlin-raw-luben93) | [#113](https://github.com/arjaythedev/multicore-server-challenge/pull/113) @luben93 | direct | 26,184 | 180 | 278 | 19% / 64% |  |
 | 14 | **100,000** | [rust-tokio-Scooter1337](submissions/rust-tokio-Scooter1337) | [#7](https://github.com/arjaythedev/multicore-server-challenge/pull/7) @Scooter1337 | direct | 26,279 | 119 | 185 | 20% / 70% |  |
 | 15 | **96,000** | [c-epoll-aarchitecture](submissions/c-epoll-aarchitecture) | [#96](https://github.com/arjaythedev/multicore-server-challenge/pull/96) @aarchitecture | direct | 24,719 | 299 | 449 | 39% / 55% |  |
 | 16 | **95,000** | [csharp-sockets-jh-d](submissions/csharp-sockets-jh-d) | [#22](https://github.com/arjaythedev/multicore-server-challenge/pull/22) @jh-d | direct | 24,696 | 493 | 737 | 21% / 75% |  |
