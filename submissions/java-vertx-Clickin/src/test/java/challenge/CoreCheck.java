@@ -1,23 +1,32 @@
 package challenge;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.channel.epoll.EpollIoHandler;
 import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.unix.UnixChannelOption;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.net.TcpConfig;
+import io.vertx.core.net.TcpOption;
 import io.vertx.sqlclient.Row;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Proxy;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import javax.crypto.Mac;
@@ -29,8 +38,41 @@ public final class CoreCheck {
         validation();
         writer();
         jwt();
+        transportOptions();
         if (System.getProperty("os.name").startsWith("Linux")) epoll();
         System.out.println("Gzip, JSON, and JWT checks passed");
+    }
+
+    private static void transportOptions() {
+        var transport = new DeferAcceptTransport();
+        var config = new TcpConfig().setSoReusePort(true).setSoLinger(2)
+                .setOption(TcpOption.NODELAY, true).setOption(TcpOption.QUICKACK, true);
+        var server = new ServerBootstrap();
+        transport.configure(config, false, server);
+        var children = server.config().childOptions();
+        if (children.containsKey(ChannelOption.TCP_NODELAY) || children.containsKey(ChannelOption.SO_KEEPALIVE))
+            throw new AssertionError("redundant accepted socket options");
+        if (!Integer.valueOf(2).equals(children.get(ChannelOption.SO_LINGER))
+                || !Boolean.TRUE.equals(children.get(EpollChannelOption.TCP_QUICKACK)))
+            throw new AssertionError("other accepted socket options");
+        if (!Boolean.TRUE.equals(server.config().options().get(UnixChannelOption.SO_REUSEPORT))
+                || !Integer.valueOf(1).equals(server.config().options().get(EpollChannelOption.TCP_DEFER_ACCEPT)))
+            throw new AssertionError("server socket options");
+
+        var domain = new ServerBootstrap().childOption(ChannelOption.TCP_NODELAY, false)
+                .childOption(ChannelOption.SO_KEEPALIVE, true);
+        transport.configure(config, true, domain);
+        if (!Boolean.FALSE.equals(domain.config().childOptions().get(ChannelOption.TCP_NODELAY))
+                || !Boolean.TRUE.equals(domain.config().childOptions().get(ChannelOption.SO_KEEPALIVE))
+                || domain.config().options().containsKey(EpollChannelOption.TCP_DEFER_ACCEPT))
+            throw new AssertionError("domain socket options");
+
+        var client = new Bootstrap();
+        transport.configure(config, false, client);
+        if (!Boolean.TRUE.equals(client.config().options().get(ChannelOption.TCP_NODELAY))
+                || !Boolean.FALSE.equals(client.config().options().get(ChannelOption.SO_KEEPALIVE)))
+            throw new AssertionError("client socket options");
+        System.out.println("Transport option checks passed");
     }
 
     private static void epoll() throws Exception {
@@ -38,20 +80,37 @@ public final class CoreCheck {
         if (!transport.isAvailable()) throw new AssertionError("Epoll unavailable", transport.unavailabilityCause());
         var group = new MultiThreadIoEventLoopGroup(1, EpollIoHandler.newFactory());
         try {
+            var accepted = new CompletableFuture<Channel>();
             var bootstrap = new ServerBootstrap().group(group).channel(EpollServerSocketChannel.class)
-                    .childHandler(new ChannelInboundHandlerAdapter());
+                    .childHandler(new ChannelInboundHandlerAdapter() {
+                        @Override public void channelActive(ChannelHandlerContext ctx) {
+                            accepted.complete(ctx.channel());
+                            ctx.fireChannelActive();
+                        }
+                    });
             transport.configure(new TcpConfig(), false, bootstrap);
             var channel = bootstrap.bind("127.0.0.1", 0).sync().channel();
             try {
                 if (!Integer.valueOf(1).equals(channel.config().getOption(EpollChannelOption.TCP_DEFER_ACCEPT)))
                     throw new AssertionError("TCP_DEFER_ACCEPT not set");
+                try (var client = new Socket("127.0.0.1", ((InetSocketAddress) channel.localAddress()).getPort())) {
+                    client.getOutputStream().write(1);
+                    var child = accepted.get(5, TimeUnit.SECONDS);
+                    try {
+                        if (!Boolean.TRUE.equals(child.config().getOption(ChannelOption.TCP_NODELAY))
+                                || !Boolean.FALSE.equals(child.config().getOption(ChannelOption.SO_KEEPALIVE)))
+                            throw new AssertionError("accepted socket defaults");
+                    } finally {
+                        child.close().sync();
+                    }
+                }
             } finally {
                 channel.close().sync();
             }
         } finally {
             group.shutdownGracefully(0, 0, TimeUnit.SECONDS).sync();
         }
-        System.out.println("Epoll deferred accept check passed");
+        System.out.println("Epoll deferred accept and socket checks passed");
     }
 
     private static void gzip() throws Exception {

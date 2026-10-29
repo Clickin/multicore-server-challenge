@@ -1,5 +1,6 @@
 package challenge;
 
+import io.netty.handler.flush.FlushConsolidationHandler;
 import io.vertx.core.Completable;
 import io.vertx.core.Future;
 import io.vertx.core.VerticleBase;
@@ -18,6 +19,8 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
+import io.vertx.sqlclient.codec.SocketConnectionBase;
+import io.vertx.sqlclient.internal.SqlConnectionInternal;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -68,6 +71,13 @@ final class FeedVerticle extends VerticleBase {
         var builder = PgBuilder.client().using(vertx).connectingTo(connect)
                 .with(new PoolOptions().setMaxSize(poolSize).setEventLoopSize(0))
                 .with(new NetClientOptions().setConnectTimeout(5_000));
+        if (Boolean.parseBoolean(System.getProperty("mu.db-flush-batch", "true"))) {
+            builder.withConnectHandler(conn -> {
+                var socket = (SocketConnectionBase) ((SqlConnectionInternal) conn).unwrap().unwrap();
+                socket.socket().channelHandlerContext().pipeline().addFirst(new FlushConsolidationHandler(256, true));
+                conn.close();
+            });
+        }
         db = builder.build();
         feedQuery = db.preparedQuery(FEED);
         findQuery = db.preparedQuery(FIND);

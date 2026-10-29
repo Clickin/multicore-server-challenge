@@ -36,13 +36,18 @@ response. Each verticle also keeps its own prepared queries, response buffer, HM
 nothing.
 
 **Postgres.** The server runs the SPEC's SQL, one query per request. It prepares each query once per connection and
-pipelines up to 256 queries on each of the 64 connections, so queries from many requests go out in one write.
+pipelines up to 256 queries on each of the 64 connections. The pg client flushes its socket after every query, so
+by default each request costs one `write` to Postgres. A Netty `FlushConsolidationHandler` at the head of each
+Postgres connection's pipeline defers those flushes until the event loop has handled all ready I/O. Queries from all
+requests that arrived together then go out in one `write`.
 
 **HTTP server.** Strict thread mode is on. The server never closes idle connections, which meets the SPEC's 75 s
 minimum and removes Netty's per-connection idle timer. Compression, the h2c upgrade and WebSocket compression are off.
 With them on, Vert.x creates an HTTP/2 initializer and two WebSocket deflate handshakers for every connection, about
 120 MB at a million connections. A small `EpollTransport` subclass sets `TCP_DEFER_ACCEPT` on the listening sockets,
-so the kernel hands over a connection only after its first request arrives.
+so the kernel hands over a connection only after its first request arrives. It also drops the `TCP_NODELAY` and
+`SO_KEEPALIVE` options that Vert.x would set again on every accepted socket. Netty already turns on `TCP_NODELAY`
+when it creates the channel, and keep-alive is off by default.
 
 **Allocation per request.** The server writes response JSON into a per-loop byte array and copies it once into a
 buffer of the exact size. It uses no JSON generator and creates no intermediate strings. It formats `created_at`
@@ -58,8 +63,8 @@ for 140 to 830 ms per young collection at the end of the ramp. ZGC does this wor
 here.
 
 The heap has no fixed size and is not pre-touched. ZGC grows it as needed, up to 75% of RAM. At a million connections on
-a 32 GB machine it committed about 21 GB. An earlier version fixed the heap at half of RAM and pre-touched it. With
-that setting the slowdown after the ramp (see Measurements) lasted longer.
+a 32 GB machine it committed about 21 GB. `-XX:-ZUncommit` keeps ZGC from returning that memory to the OS, so the
+kernel zero-fills each heap page only once.
 
 On Java 25 and later, Netty 4.2 stops using `sun.misc.Unsafe` by default and falls back to `ByteBuffer` and
 `MemorySegment` access. That path adds bounds and session checks to every buffer access and allocates a
@@ -71,28 +76,29 @@ at level 1 with a reused `Deflater`. On 4 cores gzip cost more CPU than it saved
 
 ## Measurements
 
-I measured on Hetzner Cloud, not on the benchmark machines, so the numbers are only a rough guide. The app ran on a
-CCX33 (AMD, 32 GB, virtio NIC with one queue) with all but 4 CPUs taken offline. Postgres ran on a CPX52. Four load
-generators ran `bench/mload -gzip -think-scale 2.5` with a 330 s ramp, about 3,000 new connections per second, and a
-5-minute hold.
+I measured on Hetzner Cloud, not on the benchmark machines. The app ran on a CCX33 (AMD, 32 GB, virtio NIC with one
+queue) with all but 4 CPUs taken offline. Postgres ran on a CPX42. Four load generators (CCX23, CAX31, CCX13, CAX21)
+drove 330,000, 330,000, 170,000 and 170,000 users with `bench/mload -gzip -think-scale 2.5`. The ramp took 330 s,
+about 3,000 new connections per second, and the hold lasted 5 minutes.
 
-At 4 cores and 1,000,000 users no run passed. The problem is the 1 to 2 minutes right after the ramp. There the full
-request rate, the last connection setups and the GC work on a million new connections overlap. CPU reaches about 90%
-and p95 rises to 2 to 4 s. Once that is over, the server handles about 42k requests per second at a p95 of about
-240 ms and a p99 of about 270 ms. That is the load generators' own floor on this setup. It uses about 52% of the
-4 cores, 20% user time and 32% kernel time.
+At 4 cores and 1,000,000 users the server passed in both runs:
 
-The best full run used the earlier fixed, pre-touched heap. It finished with a p95 of 2.0 s, a p99 of 2.4 s and no
-errors.
+| Run | Requests/s | p95 | p99 | Max | Errors |
+|---|---|---|---|---|---|
+| 1 | 32,062 | 41.9 ms | 207.7 ms | 897 ms | 0 |
+| 2 | 32,063 | 37.5 ms | 148.1 ms | 804 ms | 0 |
 
-I could not finish a clean 1M run with the current heap setting, because the load generators I had ran out of CPU or
-memory before the server did. One load generator still had headroom while it drove 350,000 users. On it the slowdown
-after the ramp lasted about 20 s (one sample at a p95 of 2.7 s), and p95 was 20 to 35 ms after that. With the fixed
-heap every load generator saw 1 to 2 minutes at 2 to 3 s. This suggests the change helps. It does not show that the
-server passes 1M on 4 cores. I did not measure 8 or 16 cores.
+CPU peaked at 95 to 97% at the end of the ramp. During the hold it was 62 to 63%: 17% user time and 45 to 46% kernel
+time. Postgres stayed under 38% CPU and the load generators under 35%. GC logged no allocation stalls.
+
+The flush consolidation on the Postgres connections made the difference. With it turned off (`-Dmu.db-flush-batch=false`)
+and everything else the same, p95 rose to 1 to 3.4 s for about 30 s at the end of the ramp. That run failed with a
+p95 of 288 ms and a p99 of 2.45 s. I did not measure 8 or 16 cores.
 
 These changes gave no gain at 1M users on 4 cores, so the submission does not use them: the io_uring transport, one
-`SO_REUSEPORT` listener per event loop, batched event-loop wake-ups, 3 event loops instead of 4, and gzip on 4 cores.
+`SO_REUSEPORT` listener per event loop, batched event-loop wake-ups, 3 event loops instead of 4, gzip on 4 cores, and
+group commit for writes. Group commit lowered Postgres CPU from 35% to 33% but raised app CPU from 63% to 65% and the
+p95 of writes from about 40 ms to 54 ms.
 
 ## Checks
 

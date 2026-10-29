@@ -23,7 +23,7 @@ check() {
   {
     printf '%s\n' --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow -XX:+UseZGC
     [[ -z $heap ]] || printf '%s\n' "-Xmx$heap"
-    printf '%s\n' -XX:MaxRAMPercentage=75 -XX:+UseCompactObjectHeaders \
+    printf '%s\n' -XX:MaxRAMPercentage=75 -XX:-ZUncommit -XX:+UseCompactObjectHeaders \
       -Dvertx.disableHttpHeadersValidation=true -Dio.netty.buffer.checkBounds=false -Dio.netty.buffer.checkAccessible=false \
       "-Dmu.event-loops=$loops" "-Dmu.gzip-level=$gzip" "-Dmu.db-pool=$pool" "-Dmu.db-pipeline=$pipeline" \
       -jar target/feed.jar
