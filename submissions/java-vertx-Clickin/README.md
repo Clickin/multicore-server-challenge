@@ -39,8 +39,8 @@ response all run on one thread with no handoff. It also owns its prepared querie
 gzip state.
 
 **Postgres.** The SPEC's SQL, one query per request, prepared once per connection and pipelined (up to 256 in flight
-per connection, 64 connections). Moving from pgjdbc + a thread per request to the pipelined client cut the app box's
-packets per request from ~10 to ~6 and its CPU per request by about half.
+per connection, 64 connections). Many requests' queries share one write to Postgres, which keeps the app box at
+about 6 packets per request.
 
 **HTTP server options.** Strict thread mode on. Idle timeout off (the SPEC asks for at least 75 s; we never close),
 which also drops Netty's per-connection `IdleStateHandler` timer. Compression, h2c upgrade and WebSocket compression
@@ -76,9 +76,7 @@ over 6 IPs × 2 ports, ramp 330 s (~3,000 new connections/s) then a 5-minute hol
   (user ~20%, kernel ~32%). But for 1-2 minutes right after the ramp ends, when the full request rate, the last
   connection setups and the GC work for a million young connections overlap, CPU reaches ~90% and p95 jumps to
   2-4 s, which fails the run as a whole (best run: p95 2.0 s, p99 2.4 s, 0 errors).
-- **8 cores, 1,000,000 users: passed** with an earlier version of the same pipelined-Postgres design (Micronaut HTTP
-  in front of the Vert.x client): p95 244 ms, p99 306 ms, 0 errors, about half the cores busy. This Vert.x-only
-  version uses less CPU per request than that one but was not re-run on 8 cores.
+- 8 and 16 cores were not measured on this setup.
 - For scale: on the same 4-core box, a framework-free entry (`java-epoll-stohirov`) passes with ~42% CPU. Its
   kernel time per request is close to ours; the difference is user time and, above all, its 72-byte connection
   object versus Vert.x/Netty's ~2.7 KB, which is what makes the end of the ramp expensive here.
