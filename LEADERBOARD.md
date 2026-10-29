@@ -4,9 +4,9 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 
 | # | Users | Submission | PR | Front | req/s | p95 ms | p99 ms | CPU: app / Postgres | Note |
 |--:|--:|---|---|---|--:|--:|--:|---|---|
-| 1 | **160,000** | [rust-epoll-theCatWisel](https://github.com/arjaythedev/multicore-server-challenge/pull/105) | [#105](https://github.com/arjaythedev/multicore-server-challenge/pull/105) @theCatWisel | direct | 40,289 | 497 | 682 | 28% / 66% | Not merged yet: during the hold 89% of logins and sign-ups timed out (10 s); passes the 1% error limit only because they are rare. Waiting on Arjay |
-| 2 | **130,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#82](https://github.com/arjaythedev/multicore-server-challenge/pull/82) @nickita-khylkouski | direct | 33,335 | 445 | 662 | 23% / 69% |  |
-| 3 | **130,000** | [csharp-epoll-aot-gichamba](submissions/csharp-epoll-aot-gichamba) | [#103](https://github.com/arjaythedev/multicore-server-challenge/pull/103) @gichamba | direct | 33,482 | 259 | 610 | 28% / 59% |  |
+| 1 | **130,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#82](https://github.com/arjaythedev/multicore-server-challenge/pull/82) @nickita-khylkouski | direct | 33,335 | 445 | 662 | 23% / 69% |  |
+| 2 | **130,000** | [csharp-epoll-aot-gichamba](submissions/csharp-epoll-aot-gichamba) | [#103](https://github.com/arjaythedev/multicore-server-challenge/pull/103) @gichamba | direct | 33,482 | 259 | 610 | 28% / 59% |  |
+| 3 | **130,000** | [rust-epoll-theCatWisel](submissions/rust-epoll-theCatWisel) | [#105](https://github.com/arjaythedev/multicore-server-challenge/pull/105) @theCatWisel | direct | 34,057 | 112 | 236 | 33% / 55% |  |
 | 4 | **120,000** | [go-epoll-Bparsons0904](submissions/go-epoll-Bparsons0904) | [#95](https://github.com/arjaythedev/multicore-server-challenge/pull/95) @Bparsons0904 | direct | 30,928 | 478 | 650 | 25% / 63% |  |
 | 5 | **120,000** | [rust-epoll-WorriedArrow](submissions/rust-epoll-WorriedArrow) | [#47](https://github.com/arjaythedev/multicore-server-challenge/pull/47) @WorriedArrow | direct | 30,189 | 433 | 585 | 28% / 60% |  |
 | 6 | **120,000** | [zig-iouring-harshitkhandelwal208](submissions/zig-iouring-harshitkhandelwal208) | [#100](https://github.com/arjaythedev/multicore-server-challenge/pull/100) @harshitkhandelwal208 | direct | 31,391 | 141 | 191 | 23% / 64% |  |
