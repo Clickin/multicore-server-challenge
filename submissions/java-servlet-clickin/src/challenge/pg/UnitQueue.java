@@ -13,18 +13,33 @@ final class UnitQueue {
         Unit previous = tail.getAndSet(unit);
         previous.next = unit;
     }
+
     Unit poll() {
         Unit current = head, next = current.next;
         if (current == stub) {
-            if (next == null) return null;
-            head = current = next; next = current.next;
+            if (next == null) {
+                return null;
+            }
+            head = current = next;
+            next = current.next;
         }
-        if (next != null) { head = next; return current; }
-        if (current != tail.get()) return null;
+        if (next != null) {
+            head = next;
+            return current;
+        }
+        if (current != tail.get()) {
+            return null;
+        }
         offer(stub);
         next = current.next;
-        if (next == null) return null;
-        head = next; return current;
+        if (next == null) {
+            return null;
+        }
+        head = next;
+        return current;
     }
-    boolean hasPending() { return head.next != null || head != tail.get(); }
+
+    boolean hasPending() {
+        return head.next != null || head != tail.get();
+    }
 }
