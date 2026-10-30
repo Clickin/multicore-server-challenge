@@ -47,8 +47,27 @@ public final class PgConn {
     private int[][] roundIndexes;
     private int[] roundCounts;
     private Query[] readBatches;
-    private static final int[][] READ_PARAMS = {{}, {1,0}, {1,0}, {1,2,0}, {0,1,2}, {1,0}, {3,1,2,0}, {3,1,2,0}, {3,1,2,0}, {0}};
-    private static final int[][] READ_TYPES = {{}, {25,20}, {25,20}, {23,23,20}, {20,23,23}, {25,20}, {25,23,23,20}, {25,23,23,20}, {25,23,23,20}, {20}};
+    /** Reads that coalesce within a round: same-kind units share one batched statement (TAGS shares one result). */
+    enum Read {
+        TAGS(Stmt.TAGS, -1, new int[]{}, new int[]{}),
+        ARTICLE(Stmt.ARTICLE, Stmt.ARTICLE_BATCH, new int[]{1,0}, new int[]{Stmt.TEXT,Stmt.INT8}),
+        COMMENTS(Stmt.COMMENTS, Stmt.COMMENTS_BATCH, new int[]{1,0}, new int[]{Stmt.TEXT,Stmt.INT8}),
+        ARTICLES(Stmt.ARTICLES, Stmt.ARTICLES_BATCH, new int[]{1,2,0}, new int[]{Stmt.INT4,Stmt.INT4,Stmt.INT8}),
+        FEED(Stmt.FEED, Stmt.FEED_BATCH, new int[]{0,1,2}, new int[]{Stmt.INT8,Stmt.INT4,Stmt.INT4}),
+        PROFILE(Stmt.PROFILE, Stmt.PROFILE_BATCH, new int[]{1,0}, new int[]{Stmt.TEXT,Stmt.INT8}),
+        ARTICLES_TAG(Stmt.ARTICLES_TAG, Stmt.ARTICLES_TAG_BATCH, new int[]{3,1,2,0}, new int[]{Stmt.TEXT,Stmt.INT4,Stmt.INT4,Stmt.INT8}),
+        ARTICLES_AUTHOR(Stmt.ARTICLES_AUTHOR, Stmt.ARTICLES_AUTHOR_BATCH, new int[]{3,1,2,0}, new int[]{Stmt.TEXT,Stmt.INT4,Stmt.INT4,Stmt.INT8}),
+        ARTICLES_FAVORITED(Stmt.ARTICLES_FAVORITED, Stmt.ARTICLES_FAVORITED_BATCH, new int[]{3,1,2,0}, new int[]{Stmt.TEXT,Stmt.INT4,Stmt.INT4,Stmt.INT8}),
+        USER(Stmt.USER, Stmt.USER_BATCH, new int[]{0}, new int[]{Stmt.INT8});
+        /** single: per-unit statement; batch: coalesced statement or -1; params/types: unit parameter order and batch array OIDs. */
+        final int single, batch; final int[] params, types;
+        Read(int single, int batch, int[] params, int[] types) { this.single = single; this.batch = batch; this.params = params; this.types = types; }
+    }
+    private static final Read[] READS = Read.values();
+    private static final int SHARED = Read.TAGS.ordinal();
+    /** Statement id to Read ordinal + 1 (0: not coalesced), so kind() is a load instead of a compare chain. */
+    private static final byte[] KIND = new byte[Stmt.count()];
+    static { for (Read r : READS) KIND[r.single] = (byte) (r.ordinal() + 1); }
     private Scram scram;
     private String error, state;
     private boolean failed, connected;
@@ -65,10 +84,9 @@ public final class PgConn {
     void initGroups(int max) { group = new Unit[max]; }
     int groupSize() { return groupSize; }
     void initReads(int max) {
-        initGroups(max); roundIndexes = new int[10][max]; roundCounts = new int[10];
-        readBatches = new Query[10];
-        int[] statements = {0, Stmt.ARTICLE_BATCH, Stmt.COMMENTS_BATCH, Stmt.ARTICLES_BATCH, Stmt.FEED_BATCH, Stmt.PROFILE_BATCH, Stmt.ARTICLES_TAG_BATCH, Stmt.ARTICLES_AUTHOR_BATCH, Stmt.ARTICLES_FAVORITED_BATCH, Stmt.USER_BATCH};
-        for (int i = 1; i < statements.length; i++) { readBatches[i] = new Query(statements[i], false); readBatches[i].reserveBatch(max); }
+        initGroups(max); roundIndexes = new int[READS.length][max]; roundCounts = new int[READS.length];
+        readBatches = new Query[READS.length];
+        for (Read r : READS) if (r.batch >= 0) { Query q = readBatches[r.ordinal()] = new Query(r.batch, false); q.reserveBatch(max); }
     }
     void sendReadRound() {
         readRound = true; Arrays.fill(roundCounts, 0);
@@ -77,8 +95,7 @@ public final class PgConn {
     }
     private int kind(Unit u) {
         if (u.tx || u.queries.length != 1) return -1;
-        int id = u.queries[0].statementId;
-        return id == Stmt.TAGS ? 0 : id == Stmt.ARTICLE ? 1 : id == Stmt.COMMENTS ? 2 : id == Stmt.ARTICLES ? 3 : id == Stmt.FEED ? 4 : id == Stmt.PROFILE ? 5 : id == Stmt.ARTICLES_TAG ? 6 : id == Stmt.ARTICLES_AUTHOR ? 7 : id == Stmt.ARTICLES_FAVORITED ? 8 : id == Stmt.USER ? 9 : -1;
+        return KIND[u.queries[0].statementId] - 1;
     }
     private boolean skipped(int i) { int k = kind(group[i]); return k >= 0 && roundCounts[k] > 1 && roundIndexes[k][0] != i; }
     private void nextRead() { groupIndex++; while (groupIndex < groupSize && skipped(groupIndex)) groupIndex++; queryIndex = 0; }
@@ -86,15 +103,15 @@ public final class PgConn {
         for (int i = 0; i < groupSize; i++) {
             if (skipped(i)) continue;
             int k = kind(group[i]);
-            if (k > 0 && roundCounts[k] > 1) { Query q = readBatches[k]; q.batchParams(group, roundIndexes[k], roundCounts[k], READ_PARAMS[k], READ_TYPES[k]); bind(statementNames[q.statementId], q); }
+            if (k >= 0 && k != SHARED && roundCounts[k] > 1) { Query q = readBatches[k]; q.batchParams(group, roundIndexes[k], roundCounts[k], READS[k].params, READS[k].types); bind(statementNames[q.statementId], q); }
             else encodeGroupUnit(group[i]);
         }
         sync();
     }
     private void readRow(byte[] data, int at, int end) {
         int k = kind(group[groupIndex]);
-        if (k == 0 && roundCounts[0] > 1) { for (int i = 0; i < roundCounts[0]; i++) group[roundIndexes[0][i]].queries[0].appendRow(data, at, end - at); }
-        else if (k > 0 && roundCounts[k] > 1) {
+        if (k == SHARED && roundCounts[SHARED] > 1) { for (int i = 0; i < roundCounts[SHARED]; i++) group[roundIndexes[SHARED][i]].queries[0].appendRow(data, at, end - at); }
+        else if (k >= 0 && roundCounts[k] > 1) {
             if (end - at < 10 || getInt(data, at + 2) != 4) throw new IllegalStateException("invalid read row tag");
             int index = getInt(data, at + 6) - 1;
             if (index < 0 || index >= roundCounts[k]) throw new IllegalStateException("read row tag out of range");

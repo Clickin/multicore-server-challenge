@@ -19,7 +19,7 @@ public final class Query {
 
     public Query(int statementId, boolean write) {
         this.statementId = statementId; this.write = write;
-        boolean page = statementId >= Stmt.ARTICLES && statementId <= Stmt.FEED || statementId == Stmt.COMMENTS;
+        boolean page = Stmt.page(statementId);
         rows = new byte[1024];
         rowOffsets = new int[16];
         initialColumns = page ? 224 : 64;

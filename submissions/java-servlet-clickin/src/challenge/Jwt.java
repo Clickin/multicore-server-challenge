@@ -9,6 +9,9 @@ import javax.crypto.spec.SecretKeySpec;
 /** One instance per caller; Mac and scratch space are not thread-safe. */
 public final class Jwt {
     private static final byte[] ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".getBytes(StandardCharsets.US_ASCII);
+    /** base64url byte to 6-bit value, -1 for anything outside the alphabet. */
+    private static final byte[] INDEX = new byte[256];
+    static { java.util.Arrays.fill(INDEX, (byte) -1); for (int i = 0; i < ALPHABET.length; i++) INDEX[ALPHABET[i]] = (byte) i; }
     private static final byte[] HEADER = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9".getBytes(StandardCharsets.US_ASCII);
     private final Mac mac;
     private final byte[] digest = new byte[32];
@@ -251,13 +254,13 @@ public final class Jwt {
     private static int decode(byte[] in, int from, int to, byte[] out) {
         int n = to - from;
         if ((n & 3) == 1 || (long)n * 3 / 4 > out.length) return -1;
-        int bits = 0, count = 0, p = 0;
+        int bits = 0, count = 0, p = 0, invalid = 0;
         for (int i = from; i < to; i++) {
-            int v = index(in[i]); if (v < 0) return -1;
-            bits = (bits << 6) | v; count += 6;
+            int v = INDEX[in[i] & 255]; invalid |= v;
+            bits = (bits << 6) | (v & 63); count += 6;
             if (count >= 8) { count -= 8; out[p++] = (byte)(bits >>> count); }
         }
-        return (bits & ((1 << count) - 1)) == 0 ? p : -1;
+        return invalid >= 0 && (bits & ((1 << count) - 1)) == 0 ? p : -1;
     }
     private void finish() {
         try { mac.doFinal(digest, 0); } catch (ShortBufferException e) { throw new AssertionError(e); }
@@ -268,12 +271,6 @@ public final class Jwt {
         do { out[p++] = (byte)('0' - n % 10); n /= 10; } while (n != 0);
         for (int a = start, b = p - 1; a < b; a++, b--) { byte t = out[a]; out[a] = out[b]; out[b] = t; }
         return p;
-    }
-    private static int index(byte b) {
-        if (b >= 'A' && b <= 'Z') return b - 'A';
-        if (b >= 'a' && b <= 'z') return b - 'a' + 26;
-        if (b >= '0' && b <= '9') return b - '0' + 52;
-        return b == '-' ? 62 : b == '_' ? 63 : -1;
     }
     private static int encode(byte[] source, int length, byte[] out, int at) {
         int start = at, i = 0;

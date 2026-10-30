@@ -66,6 +66,11 @@ public final class Stmt {
     public static final int UNFAVORITE = register("DELETE FROM favorites WHERE user_id=$1 AND article_id IN (SELECT id FROM articles WHERE slug=$2)",INT8,TEXT);
     public static final int CREATE_COMMENT = register("WITH c AS (INSERT INTO comments (article_id,author_id,body) SELECT id,$1,$3 FROM articles WHERE slug=$2 RETURNING *) SELECT c.id,c.body,c.created_at,c.updated_at,u.username,u.bio,u.image FROM c JOIN users u ON u.id=c.author_id",INT8,TEXT,TEXT);
     public static final int DELETE_COMMENT = register("WITH target AS (SELECT c.id,c.author_id FROM comments c JOIN articles a ON a.id=c.article_id WHERE c.id=$3 AND a.slug=$2), del AS (DELETE FROM comments WHERE id IN (SELECT id FROM target WHERE author_id=$1)) SELECT author_id=$1 FROM target",INT8,TEXT,INT8);
+    private static final boolean[] PAGE = new boolean[REGISTRY.size()];
+    static { for (int id : new int[]{ARTICLES, ARTICLES_TAG, ARTICLES_AUTHOR, ARTICLES_FAVORITED, FEED, COMMENTS}) PAGE[id] = true; }
+    /** Statements whose rows carry full article or comment lists, sized up front in Query. */
+    public static boolean page(int id) { return PAGE[id]; }
+    public static int count() { return PAGE.length; }
     private static boolean frozen;
     public record Statement(String sql, int[] parameterOids) {
         public Statement { Objects.requireNonNull(sql); parameterOids = parameterOids.clone(); }
