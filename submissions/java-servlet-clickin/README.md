@@ -121,7 +121,14 @@ shared vCPU, the account's limit) were at their edge too, so the strict reading 
 
 The FFM epoll/socket bindings and the Postgres wire-protocol basics started from
 [java-epoll-stohirov](https://github.com/arjaythedev/million-users-challenge/tree/main/submissions/java-epoll-stohirov)
-(MIT) in the million-users challenge. Ideas borrowed from this repo's leaders: array-parameter batching and the feed
-count shortcut (zig-iouring-nick-potts), gathering reads and one round per connection (scala-netty-didierliauw).
+(MIT) in the million-users challenge. Ideas borrowed from this repo's leaders: array-parameter batching and the feed count shortcut from [zig-iouring-nick-potts](../zig-iouring-nick-potts)
+([#79](https://github.com/arjaythedev/multicore-server-challenge/pull/79),
+[#117](https://github.com/arjaythedev/multicore-server-challenge/pull/117)); gathering reads and one round per
+connection from [scala-netty-didierliauw](../scala-netty-didierliauw)
+([#75](https://github.com/arjaythedev/multicore-server-challenge/pull/75),
+[#125](https://github.com/arjaythedev/multicore-server-challenge/pull/125)).
 
 MIT, under the repo's [license](../../LICENSE).
+
+Built with Claude Code (Anthropic). Changes were checked against the unit tests (`test/run-unit.sh`), the
+conformance suite (`dev/conformance.sh`) and alternating local load runs against the previous build (`dev/load.sh`).
