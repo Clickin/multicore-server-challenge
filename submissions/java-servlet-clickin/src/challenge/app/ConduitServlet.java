@@ -196,9 +196,23 @@ public final class ConduitServlet extends HttpServlet {
         return true;
     }
     private static boolean eq(Request r,int a,int b,String s) { if(b-a!=s.length())return false; for(int i=0;i<s.length();i++)if(r.bytes()[a+i]!=(byte)s.charAt(i))return false; return true; }
+    private static final long SLASHES=0x2f2f2f2f2f2f2f2fL, LOW7=0x7f7f7f7f7f7f7f7fL;
+    // Branchless split: '/' bytes are found 8 at a time (exact zero-byte test on w^SLASHES), stored to end[] with
+    // unconditional writes, and every invalid case is folded into a mask. Only the word loop's trip count depends on
+    // the input. Reading 8 bytes at any i<limit stays in bounds: Loop only accepts request lines ending " HTTP/1.1".
+    // More than 4 slashes in one word implies an empty segment, so leftover bits mark the path invalid.
     static int segments(Request r,int[] start,int[] end) {
-        byte[] b=r.bytes(); int p=r.pathOffset()+1, limit=r.pathOffset()+r.pathLength(), n=0;
-        while(p<limit) { if(n==start.length)return -1; int a=p; while(p<limit && b[p]!='/')p++; if(p==a)return -1; start[n]=a;end[n++]=p; if(p<limit && ++p==limit)return -1; } return n;
+        byte[] b=r.bytes(); int p=r.pathOffset()+1, limit=r.pathOffset()+r.pathLength(), last=end.length-1, n=0; long leftover=0;
+        for(int i=p;i<limit;i+=8) {
+            long x=(long)LONG.get(b,i)^SLASHES, m=~(((x&LOW7)+LOW7)|x|LOW7)&(-1L>>>((8-Math.min(limit-i,8))<<3));
+            for(int k=0;k<4;k++) { end[Math.min(n,last)]=i+(Long.numberOfTrailingZeros(m)>>>3); n+=(int)((m|-m)>>>63); m&=m-1; }
+            leftover|=m;
+        }
+        end[Math.min(n,last)]=limit; start[0]=p;
+        for(int k=1;k<start.length;k++) start[k]=end[k-1]+1;
+        int count=(n+1)&((p-limit)>>31), invalid=(int)((leftover|-leftover)>>63)|((start.length-count)>>31);
+        for(int k=0;k<start.length;k++) { int d=end[k]-start[k]; invalid|=~((d|-d)>>31)&((k-count)>>31); }
+        return count|invalid;
     }
     private final class Slot extends Task implements Completions, Unit.Callback {
         final Request request; final Jwt jwt; final Query query=new Query(0,false); Query secondary;
