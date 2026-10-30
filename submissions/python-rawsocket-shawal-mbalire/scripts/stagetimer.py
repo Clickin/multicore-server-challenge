@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from conduit_server import main as app  # noqa: E402
 from conduit_server.adapters.inbound import router as router_mod, socket_server  # noqa: E402
-from conduit_server.adapters.outbound import pg_repository, crypto_adapter  # noqa: E402
+from conduit_server.adapters.outbound import pg_repository, pg_broker, crypto_adapter  # noqa: E402
 
 _clock = time.thread_time_ns
 acc = defaultdict(int)
@@ -67,6 +67,7 @@ for route in router_mod.router.routes:
 Crypto = crypto_adapter.JoseBcryptCryptoAdapter
 for name in ("hash_password", "verify_password"):
     _patch(Crypto, name, "bcrypt")
+_patch(crypto_adapter, "bcrypt_many", "bcrypt")  # logins, on the broker's bcrypt threads (looked up at call time)
 for name in ("issue_token", "verify_token"):
     _patch(Crypto, name, "jwt verify/issue")
 
@@ -90,6 +91,16 @@ def _counted_submit(self, query, token):
 inflight = defaultdict(int)
 pg_repository.PgPipeline.submit = _counted_submit
 _patch(pg_repository.Query, "result", "repo: dict rows + glue")
+
+# BROKER=1: the workers' end of the broker socket, and the broker process's own loop (its CPU is app CPU too; its
+# PgPipeline calls above count as libpq)
+for name in ("submit", "ready", "flush"):
+    _patch(pg_broker.BrokerClient, name, "broker IPC (worker side)")
+for name in ("_read_worker", "_send"):
+    _patch(pg_broker.Broker, name, "broker: worker IPC")
+for name in ("_dispatch", "_results"):
+    _patch(pg_broker.Broker, name, "broker: queues + replies")
+_patch(pg_broker._Job, "result", "row decode (psycopg C)")
 
 _RealTransformer = pg_repository.Transformer
 
