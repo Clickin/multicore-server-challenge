@@ -16,41 +16,103 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 import static challenge.app.ConduitServlet.Route.*;
+import static challenge.app.ConduitServlet.Verb.*;
 
 public final class ConduitServlet extends HttpServlet {
+    enum Verb { OTHER, GET, POST, PUT, DELETE }
     enum Auth { NONE, OPTIONAL, REQUIRED }
+    // Properties are constructor fields, not switches: a field load per request instead of a jump table,
+    // and a new route still fails compilation until every property is given.
     enum Route {
-        TAGS(Stmt.TAGS), REGISTER(Stmt.REGISTER), LOGIN(Stmt.LOGIN), USER(Stmt.USER), UPDATE(Stmt.UPDATE_USER),
-        PROFILE(Stmt.PROFILE), FOLLOW(Stmt.FOLLOW), UNFOLLOW(Stmt.UNFOLLOW),
-        ARTICLES(Stmt.ARTICLES), ARTICLES_TAG(Stmt.ARTICLES_TAG), ARTICLES_AUTHOR(Stmt.ARTICLES_AUTHOR), ARTICLES_FAVORITED(Stmt.ARTICLES_FAVORITED), FEED(Stmt.FEED),
-        ARTICLE(Stmt.ARTICLE), COMMENTS(Stmt.COMMENTS), CREATE_ARTICLE(Stmt.CREATE_ARTICLE), UPDATE_ARTICLE(Stmt.UPDATE_ARTICLE), DELETE_ARTICLE(Stmt.DELETE_ARTICLE),
-        FAVORITE(Stmt.FAVORITE), UNFAVORITE(Stmt.UNFAVORITE), CREATE_COMMENT(Stmt.CREATE_COMMENT), DELETE_COMMENT(Stmt.DELETE_COMMENT);
-        final int stmt;
-        Route(int stmt) { this.stmt=stmt; }
-        // Switch expressions without default: adding a route fails compilation until every property is decided.
-        Auth auth() {
-            return switch(this) {
-                case TAGS,REGISTER,LOGIN -> Auth.NONE;
-                case PROFILE,ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,ARTICLE,COMMENTS -> Auth.OPTIONAL;
-                case USER,UPDATE,FOLLOW,UNFOLLOW,FEED,CREATE_ARTICLE,UPDATE_ARTICLE,DELETE_ARTICLE,FAVORITE,UNFAVORITE,CREATE_COMMENT,DELETE_COMMENT -> Auth.REQUIRED;
-            };
-        }
-        boolean writes() {
-            return switch(this) {
-                case REGISTER,UPDATE,FOLLOW,UNFOLLOW,CREATE_ARTICLE,UPDATE_ARTICLE,DELETE_ARTICLE,FAVORITE,UNFAVORITE,CREATE_COMMENT,DELETE_COMMENT -> true;
-                case TAGS,LOGIN,USER,PROFILE,ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,FEED,ARTICLE,COMMENTS -> false;
-            };
-        }
-        boolean targeted() {
-            return switch(this) {
-                case PROFILE,FOLLOW,UNFOLLOW,ARTICLE,COMMENTS,UPDATE_ARTICLE,DELETE_ARTICLE,FAVORITE,UNFAVORITE,CREATE_COMMENT,DELETE_COMMENT -> true;
-                case TAGS,REGISTER,LOGIN,USER,UPDATE,ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,FEED,CREATE_ARTICLE -> false;
-            };
-        }
+        //                  statement                  auth           write  target
+        TAGS(              Stmt.TAGS,               Auth.NONE,     false, false),
+        REGISTER(          Stmt.REGISTER,           Auth.NONE,     true,  false),
+        LOGIN(             Stmt.LOGIN,              Auth.NONE,     false, false),
+        USER(              Stmt.USER,               Auth.REQUIRED, false, false),
+        UPDATE(            Stmt.UPDATE_USER,        Auth.REQUIRED, true,  false),
+        PROFILE(           Stmt.PROFILE,            Auth.OPTIONAL, false, true),
+        FOLLOW(            Stmt.FOLLOW,             Auth.REQUIRED, true,  true),
+        UNFOLLOW(          Stmt.UNFOLLOW,           Auth.REQUIRED, true,  true),
+        ARTICLES(          Stmt.ARTICLES,           Auth.OPTIONAL, false, false),
+        ARTICLES_TAG(      Stmt.ARTICLES_TAG,       Auth.OPTIONAL, false, false),
+        ARTICLES_AUTHOR(   Stmt.ARTICLES_AUTHOR,    Auth.OPTIONAL, false, false),
+        ARTICLES_FAVORITED(Stmt.ARTICLES_FAVORITED, Auth.OPTIONAL, false, false),
+        FEED(              Stmt.FEED,               Auth.REQUIRED, false, false),
+        ARTICLE(           Stmt.ARTICLE,            Auth.OPTIONAL, false, true),
+        COMMENTS(          Stmt.COMMENTS,           Auth.OPTIONAL, false, true),
+        CREATE_ARTICLE(    Stmt.CREATE_ARTICLE,     Auth.REQUIRED, true,  false),
+        UPDATE_ARTICLE(    Stmt.UPDATE_ARTICLE,     Auth.REQUIRED, true,  true),
+        DELETE_ARTICLE(    Stmt.DELETE_ARTICLE,     Auth.REQUIRED, true,  true),
+        FAVORITE(          Stmt.FAVORITE,           Auth.REQUIRED, true,  true),
+        UNFAVORITE(        Stmt.UNFAVORITE,         Auth.REQUIRED, true,  true),
+        CREATE_COMMENT(    Stmt.CREATE_COMMENT,     Auth.REQUIRED, true,  true),
+        DELETE_COMMENT(    Stmt.DELETE_COMMENT,     Auth.REQUIRED, true,  true);
+        final int stmt; final Auth auth; final boolean writes, targeted;
+        Route(int stmt,Auth auth,boolean writes,boolean targeted) { this.stmt=stmt; this.auth=auth; this.writes=writes; this.targeted=targeted; }
     }
+    // Routing is branchless: path words and the method are hashed (first 8 bytes) into token ids, a mask
+    // zeroes unknown words, and the route is a single ROUTE_TABLE load keyed by (resource, sub-word, segment count, verb).
+    private static final String[] WORDS={null,"api","tags","user","users","profiles","articles","login","feed","follow","favorite","comments","GET","POST","PUT","DELETE"};
+    private static final String[] RESOURCE_WORDS={null,"tags","user","users","profiles","articles"}, SUB_WORDS={null,"login","feed","follow","favorite","comments"};
+    private static final int API=1, COUNTS=7;
+    private static final int[] LAST_SEGMENT={1,1,1,2,3,3,3};
+    private static final long HASH=0x9e3779b97f4a7c4bL;
+    private static final VarHandle LONG=MethodHandles.byteArrayViewVarHandle(long[].class,ByteOrder.LITTLE_ENDIAN);
+    private static final long[] WORD=new long[WORDS.length];
+    private static final int[] LENGTH=new int[WORDS.length];
+    private static final byte[] TOKEN=new byte[32], RESOURCE=new byte[WORDS.length], SUB=new byte[WORDS.length], VERB=new byte[WORDS.length];
+    private static final Verb[] VERBS=Verb.values();
+    private static final Route[] ROUTES=new Route[Route.values().length+1];
+    private static final byte[] ROUTE_TABLE=new byte[RESOURCE_WORDS.length*SUB_WORDS.length*COUNTS*VERBS.length];
+    static {
+        for(int t=1;t<WORDS.length;t++) {
+            byte[] b=WORDS[t].getBytes(StandardCharsets.US_ASCII); long w=0;
+            for(int i=0;i<b.length;i++) w|=(b[i]&255L)<<(8*i);
+            int h=hash(w); if(TOKEN[h]!=0) throw new ExceptionInInitializerError("route word hash collision: "+WORDS[t]);
+            TOKEN[h]=(byte)t; WORD[t]=w; LENGTH[t]=b.length;
+        }
+        for(int i=1;i<RESOURCE_WORDS.length;i++) RESOURCE[id(RESOURCE_WORDS[i])]=(byte)i;
+        for(int i=1;i<SUB_WORDS.length;i++) SUB[id(SUB_WORDS[i])]=(byte)i;
+        for(Verb v:VERBS) if(v!=OTHER) VERB[id(v.name())]=(byte)v.ordinal();
+        for(Route r:Route.values()) ROUTES[r.ordinal()+1]=r;
+        put("tags",2,null,GET,TAGS);
+        put("user",2,null,GET,USER); put("user",2,null,PUT,UPDATE);
+        put("users",2,null,POST,REGISTER); put("users",3,"login",POST,LOGIN);
+        put("profiles",3,null,GET,PROFILE); put("profiles",4,"follow",POST,FOLLOW); put("profiles",4,"follow",DELETE,UNFOLLOW);
+        put("articles",2,null,GET,ARTICLES); put("articles",2,null,POST,CREATE_ARTICLE);
+        put("articles",3,null,GET,ARTICLE); put("articles",3,"feed",GET,FEED); put("articles",3,null,PUT,UPDATE_ARTICLE); put("articles",3,null,DELETE,DELETE_ARTICLE);
+        put("articles",4,"favorite",POST,FAVORITE); put("articles",4,"favorite",DELETE,UNFAVORITE);
+        put("articles",4,"comments",GET,COMMENTS); put("articles",4,"comments",POST,CREATE_COMMENT);
+        put("articles",5,"comments",DELETE,DELETE_COMMENT);
+    }
+    private static int id(String word) { for(int t=1;t<WORDS.length;t++) if(WORDS[t].equals(word)) return t; throw new IllegalArgumentException(word); }
+    // A null sub-word fills every sub-word slot: that segment is a slug or username, not a keyword.
+    private static void put(String resource,int count,String sub,Verb verb,Route route) {
+        for(int s=0;s<SUB_WORDS.length;s++) if(sub==null || s==SUB[id(sub)]) ROUTE_TABLE[key(RESOURCE[id(resource)],s,count,verb.ordinal())]=(byte)(route.ordinal()+1);
+    }
+    private static int key(int resource,int sub,int count,int verb) { return ((resource*SUB_WORDS.length+sub)*COUNTS+count)*VERBS.length+verb; }
+    private static int hash(long w) { return (int)(w*HASH>>>59); }
+    private static int token(byte[] b,int a,int e) {
+        int len=e-a;
+        long w=(long)LONG.get(b,Math.max(0,Math.min(a,b.length-8)))&(-1L>>>((8-Math.max(1,Math.min(len,8)))<<3));
+        int t=TOKEN[hash(w)];
+        long d=(WORD[t]^w)|(LENGTH[t]^len);
+        return t&(int)~((d|-d)>>63);
+    }
+    static Verb verb(Request r) { return VERBS[VERB[token(r.bytes(),0,r.pathOffset()-1)]]; }
+    static Route route(Request r,int[] start,int[] end,int count,Verb verb) {
+        byte[] b=r.bytes(); int c=Math.max(0,Math.min(count,COUNTS-1)), last=LAST_SEGMENT[c];
+        int d=token(b,start[0],end[0])^API, api=~((d|-d)>>31);
+        int resource=RESOURCE[token(b,start[1],end[1])]&api;
+        return ROUTES[ROUTE_TABLE[key(resource,SUB[token(b,start[last],end[last])],c,verb.ordinal())]];
+    }
+
     private final PgDispatcher dispatcher;
     private final BcryptPool bcrypt;
     private final String secret;
@@ -59,33 +121,17 @@ public final class ConduitServlet extends HttpServlet {
     @Override public void service(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Request req=(Request)request; Response res=(Response)response;
         int[] start=req.segmentStarts, end=req.segmentEnds; int count=segments(req,start,end);
-        boolean get=method(req,"GET"), post=method(req,"POST"), put=method(req,"PUT"), delete=method(req,"DELETE");
-        if (count==1 && eq(req,start[0],end[0],"__async") && get) {
+        Verb verb=verb(req);
+        if (count==1 && eq(req,start[0],end[0],"__async") && verb==GET) {
             AsyncContext async=req.startAsync(); req.loop().post(new Task(){ public void run(){async.complete();} }); return;
         }
-        if (count==1 && eq(req,start[0],end[0],"__echo") && post) { res.getOutputStream().write(req.bytes(),req.bodyOffset(),req.bodyLength()); return; }
-        Route route=null;
-        if(count>=2 && eq(req,start[0],end[0],"api")) {
-            if(count==2 && eq(req,start[1],end[1],"tags") && get) route=TAGS;
-            else if(count==2 && eq(req,start[1],end[1],"users") && post) route=REGISTER;
-            else if(count==3 && eq(req,start[1],end[1],"users") && eq(req,start[2],end[2],"login") && post) route=LOGIN;
-            else if(count==2 && eq(req,start[1],end[1],"user")) route=get?USER:put?UPDATE:null;
-            else if(eq(req,start[1],end[1],"profiles") && count>=3) {
-                if(count==3 && get) route=PROFILE;
-                else if(count==4 && eq(req,start[3],end[3],"follow")) route=post?FOLLOW:delete?UNFOLLOW:null;
-            } else if(eq(req,start[1],end[1],"articles")) {
-                if(count==2 && (get||post)) route=get?ARTICLES:CREATE_ARTICLE;
-                else if(count==3 && (get||put||delete)) route=get?(eq(req,start[2],end[2],"feed")?FEED:ARTICLE):put?UPDATE_ARTICLE:DELETE_ARTICLE;
-                else if(count==4 && eq(req,start[3],end[3],"favorite") && (post||delete)) route=post?FAVORITE:UNFAVORITE;
-                else if(count==4 && eq(req,start[3],end[3],"comments") && (get||post)) route=get?COMMENTS:CREATE_COMMENT;
-                else if(count==5 && eq(req,start[3],end[3],"comments") && delete) route=DELETE_COMMENT;
-            }
-        }
+        if (count==1 && eq(req,start[0],end[0],"__echo") && verb==POST) { res.getOutputStream().write(req.bytes(),req.bodyOffset(),req.bodyLength()); return; }
+        Route route=route(req,start,end,count,verb);
         if(route==null) { Helpers.error(res,404,"not found"); return; }
         Slot slot=(Slot)req.applicationSlot;
         if(slot==null) req.applicationSlot=slot=new Slot(req);
         long viewer=0;
-        Auth auth=route.auth();
+        Auth auth=route.auth;
         if(auth!=Auth.NONE) {
             viewer=Helpers.viewer(req,slot.jwt,auth==Auth.REQUIRED);
             if(viewer<0) { Helpers.error(res,401,"unauthorized"); return; }
@@ -130,7 +176,7 @@ public final class ConduitServlet extends HttpServlet {
         slot.limit=limit; slot.offset=offset;
         slot.tokenOffset=req.authorizationOffset()<0?0:req.authorizationOffset()+6;
         slot.tokenLength=req.authorizationOffset()<0?0:req.authorizationLength()-6;
-        if(route.targeted()) { slot.targetOffset=start[2]; slot.targetLength=end[2]-start[2]; slot.targetValid=utf8(req.bytes(),slot.targetOffset,slot.targetLength); }
+        if(route.targeted) { slot.targetOffset=start[2]; slot.targetLength=end[2]-start[2]; slot.targetValid=utf8(req.bytes(),slot.targetOffset,slot.targetLength); }
         slot.async=req.startAsync(); slot.start();
     }
     private static boolean utf8(byte[] b,int offset,int length) {
@@ -149,9 +195,8 @@ public final class ConduitServlet extends HttpServlet {
         }
         return true;
     }
-    private static boolean method(Request r,String s) { return eq(r,0,r.pathOffset()-1,s); }
     private static boolean eq(Request r,int a,int b,String s) { if(b-a!=s.length())return false; for(int i=0;i<s.length();i++)if(r.bytes()[a+i]!=(byte)s.charAt(i))return false; return true; }
-    private static int segments(Request r,int[] start,int[] end) {
+    static int segments(Request r,int[] start,int[] end) {
         byte[] b=r.bytes(); int p=r.pathOffset()+1, limit=r.pathOffset()+r.pathLength(), n=0;
         while(p<limit) { if(n==start.length)return -1; int a=p; while(p<limit && b[p]!='/')p++; if(p==a)return -1; start[n]=a;end[n++]=p; if(p<limit && ++p==limit)return -1; } return n;
     }
@@ -167,7 +212,7 @@ public final class ConduitServlet extends HttpServlet {
             unit=new Unit(this,this,false,false,one);
         }
         void start() {
-            boolean write=route.writes();
+            boolean write=route.writes;
             query.prepare(route.stmt,write);
             boolean dual=route==CREATE_ARTICLE||route==FAVORITE||route==UNFAVORITE;
             if(dual) {
