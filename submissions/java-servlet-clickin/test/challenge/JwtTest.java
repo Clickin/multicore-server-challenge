@@ -38,7 +38,8 @@ public final class JwtTest {
         if (jwt.verify(buf, 0, n, 1000) != -1) {
             throw new AssertionError("signature");
         }
-        String h = "{\"alg\":\"HS256\"}", p = "{\"sub\":\"1\",\"exp\":1001}";
+        String h = "{\"alg\":\"HS256\"}";
+        String p = "{\"sub\":\"1\",\"exp\":1001}";
         check(jwt, token(h, p), 1000, 1);
         check(jwt, token(" { \"typ\" : \"JWT\", \"alg\" : \"HS256\" } ", " { \"extra\": [true, false, null, {\"x\":\"a\\\\\\\"b\",\"n\":-1.2e+3}], \"exp\" : 1001, \"sub\" : \"42\" } "),
                 1000, 42);

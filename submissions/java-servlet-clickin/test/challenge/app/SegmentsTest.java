@@ -10,7 +10,9 @@ public final class SegmentsTest {
     // The previous byte-at-a-time splitter, kept as the reference.
     private static int reference(Request r, int[] start, int[] end) {
         byte[] b = r.bytes();
-        int p = r.pathOffset() + 1, limit = r.pathOffset() + r.pathLength(), n = 0;
+        int p = r.pathOffset() + 1;
+        int limit = r.pathOffset() + r.pathLength();
+        int n = 0;
         while (p < limit) {
             if (n == start.length) {
                 return -1;
@@ -42,9 +44,11 @@ public final class SegmentsTest {
 
     private static void check(String path, SplittableRandom random) {
         Request r = request(path);
-        int[] es = new int[6], ee = new int[6];
+        int[] es = new int[6];
+        int[] ee = new int[6];
         int expected = reference(r, es, ee);
-        int[] start = r.segmentStarts, end = r.segmentEnds;
+        int[] start = r.segmentStarts;
+        int[] end = r.segmentEnds;
         for (int k = 0; k < 6; k++) {
             start[k] = random.nextInt();
             end[k] = random.nextInt();

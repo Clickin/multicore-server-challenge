@@ -18,8 +18,17 @@ import jakarta.servlet.ServletResponse;
 
 public final class Request extends RequestAdapter {
     public byte[] data;
-    public int pathStart, pathEnd, queryStart, queryEnd, authStart = -1, authEnd, bodyStart, bodyLength;
-    public boolean gzip, close, multipleAuthorization;
+    public int pathStart;
+    public int pathEnd;
+    public int queryStart;
+    public int queryEnd;
+    public int authStart = -1;
+    public int authEnd;
+    public int bodyStart;
+    public int bodyLength;
+    public boolean gzip;
+    public boolean close;
+    public boolean multipleAuthorization;
     private int[] headerOffsets = new int[64];
     private int headerCount;
     private final Map<String, Object> attributes = new HashMap<>();
@@ -28,7 +37,8 @@ public final class Request extends RequestAdapter {
     private Response response;
     private Async async;
     private boolean started;
-    public final int[] segmentStarts = new int[6], segmentEnds = new int[6];
+    public final int[] segmentStarts = new int[6];
+    public final int[] segmentEnds = new int[6];
     public Object applicationSlot;
 
     public Request(Loop loop) {
@@ -116,7 +126,8 @@ public final class Request extends RequestAdapter {
     public String getHeader(String name) {
         String result = null;
         for (int i = 0; i < headerCount; i += 4) {
-            int a = headerOffsets[i], z = headerOffsets[i + 1];
+            int a = headerOffsets[i];
+            int z = headerOffsets[i + 1];
             if (z - a != name.length()) {
                 continue;
             }

@@ -10,13 +10,16 @@ public final class Unit {
     }
 
     public Query[] queries;
-    public boolean tx, write;
+    public boolean tx;
+    public boolean write;
     public final Completions owner;
     public final Callback callback;
     public volatile Unit next;
     long queuedAt;
-    public String sqlState, errorMessage;
-    public String bcryptPassword, bcryptHash;
+    public String sqlState;
+    public String errorMessage;
+    public String bcryptPassword;
+    public String bcryptHash;
     public boolean bcryptMatches;
 
     public Unit(Completions owner, Callback callback, boolean tx,

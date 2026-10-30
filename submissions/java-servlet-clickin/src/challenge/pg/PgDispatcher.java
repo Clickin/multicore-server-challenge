@@ -18,16 +18,22 @@ public final class PgDispatcher implements AutoCloseable {
     private final AtomicBoolean sleeping = new AtomicBoolean();
     private final AtomicInteger publishers = new AtomicInteger();
     private final Sys sys = new Sys();
-    private final int epoll, wake;
-    private final PgConn[] reads, writes, all;
-    private final int writeGroupMax, readRoundMax, gatherUs;
+    private final int epoll;
+    private final int wake;
+    private final PgConn[] reads;
+    private final PgConn[] writes;
+    private final PgConn[] all;
+    private final int writeGroupMax;
+    private final int readRoundMax;
+    private final int gatherUs;
     private final boolean coalesce;
     private final ArrayDeque<Unit> waiting = new ArrayDeque<>();
     private final Thread thread;
     private volatile boolean closed;
 
     public PgDispatcher(String url) throws Exception {
-        int nr = env("READ_CONNS", 8), nw = env("WRITE_CONNS", 4);
+        int nr = env("READ_CONNS", 8);
+        int nw = env("WRITE_CONNS", 4);
         writeGroupMax = env("WRITE_GROUP_MAX", 256);
         readRoundMax = env("READ_ROUND_MAX", 512);
         gatherUs = env("READ_GATHER_US", 5000);
@@ -211,7 +217,8 @@ public final class PgDispatcher implements AutoCloseable {
 
     private void run() {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment events = arena.allocate((long) Sys.EVENT_SIZE * (all.length + 1), 8), io = arena.allocate(65536, 8);
+            MemorySegment events = arena.allocate((long) Sys.EVENT_SIZE * (all.length + 1), 8);
+            MemorySegment io = arena.allocate(65536, 8);
             while (!closed) {
                 drain();
                 plan();

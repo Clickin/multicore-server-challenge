@@ -4,7 +4,8 @@ public final class BCryptBench {
     public static void main(String[] args) {
         BCrypt bcrypt = new BCrypt();
         for (int lanes : new int[] {1, 2, 4}) {
-            String[] passwords = new String[lanes], salts = new String[lanes];
+            String[] passwords = new String[lanes];
+            String[] salts = new String[lanes];
             for (int i = 0; i < lanes; i++) {
                 passwords[i] = "password" + i;
                 salts[i] = "$2b$10$ZSfEoPvlcsj2XfvsSeK25e";

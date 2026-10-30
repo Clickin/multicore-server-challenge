@@ -5,7 +5,13 @@ import java.util.List;
 import java.util.Objects;
 
 public final class Stmt {
-    public static final int INT8 = 20, INT4 = 23, TEXT = 25, BOOL = 16, TEXT_ARRAY = 1009, INT8_ARRAY = 1016, INT4_ARRAY = 1007;
+    public static final int INT8 = 20;
+    public static final int INT4 = 23;
+    public static final int TEXT = 25;
+    public static final int BOOL = 16;
+    public static final int TEXT_ARRAY = 1009;
+    public static final int INT8_ARRAY = 1016;
+    public static final int INT4_ARRAY = 1007;
     private static final List<Statement> REGISTRY = new ArrayList<>();
     public static final int TAGS = register("SELECT name FROM tags ORDER BY name");
     public static final int REGISTER = register("INSERT INTO users (username,email,password_hash) VALUES ($1,$2,$3) RETURNING id,username,email,bio,image",

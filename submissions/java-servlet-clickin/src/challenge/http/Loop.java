@@ -27,11 +27,15 @@ public final class Loop implements Runnable {
     private int inflight;
     private final Pending pending = new Pending();
     private Conn serving;
-    private boolean listenerPaused, resuming;
+    private boolean listenerPaused;
+    private boolean resuming;
     private final Sys sys = new Sys();
-    private final int ep, listener, wake;
+    private final int ep;
+    private final int listener;
+    private final int wake;
     private final HttpServlet servlet;
-    private final MemorySegment io = Arena.global().allocate(65536, 8), events = Arena.global().allocate((long) Sys.EVENT_SIZE * 1024, 8);
+    private final MemorySegment io = Arena.global().allocate(65536, 8);
+    private final MemorySegment events = Arena.global().allocate((long) Sys.EVENT_SIZE * 1024, 8);
     private Conn[] connections = new Conn[1024];
     private final ArrayDeque<Exchange> pool = new ArrayDeque<>();
     private final ArrayDeque<byte[]> inputPool = new ArrayDeque<>();
@@ -55,9 +59,16 @@ public final class Loop implements Runnable {
 
     static final class Conn {
         final int fd;
-        byte[] input, output;
-        int length, written, outputLength;
-        boolean busy, closed, closeAfter, dispatching, queued;
+        byte[] input;
+        byte[] output;
+        int length;
+        int written;
+        int outputLength;
+        boolean busy;
+        boolean closed;
+        boolean closeAfter;
+        boolean dispatching;
+        boolean queued;
         Conn next;
         Exchange exchange;
 
@@ -67,7 +78,8 @@ public final class Loop implements Runnable {
     }
 
     static final class Pending {
-        private Conn head, tail;
+        private Conn head;
+        private Conn tail;
 
         boolean isEmpty() {
             return head == null;
@@ -160,7 +172,8 @@ public final class Loop implements Runnable {
     private void drain() {
         sys.read(wake, io, 8);
         for (; ; ) {
-            Task list = tasks.getAndSet(null), reverse = null;
+            Task list = tasks.getAndSet(null);
+            Task reverse = null;
             while (list != null) {
                 Task next = list.next;
                 list.next = reverse;
@@ -201,7 +214,8 @@ public final class Loop implements Runnable {
                 throw new IllegalStateException("epoll_wait errno " + sys.errno());
             }
             for (int i = 0; i < n; i++) {
-                int fd = Sys.eventFd(events, i), flags = Sys.eventFlags(events, i);
+                int fd = Sys.eventFd(events, i);
+                int flags = Sys.eventFlags(events, i);
                 if (fd == listener) {
                     if (inflight < maxInflight) {
                         accept();
@@ -640,7 +654,8 @@ public final class Loop implements Runnable {
         if (line < 0 || line + 1 >= headerEnd || b[line + 1] != '\n') {
             return -1;
         }
-        int sp = index(b, 0, line, (byte) ' '), sp2 = sp < 0 ? -1 : index(b, sp + 1, line, (byte) ' ');
+        int sp = index(b, 0, line, (byte) ' ');
+        int sp2 = sp < 0 ? -1 : index(b, sp + 1, line, (byte) ' ');
         if (sp <= 0
                 || sp2 <= sp + 1
                 || sp2 + 9 != line
@@ -669,7 +684,9 @@ public final class Loop implements Runnable {
         }
         int p = line + 2;
         long length = 0;
-        boolean hasLength = false, chunked = false, hasTransfer = false;
+        boolean hasLength = false;
+        boolean chunked = false;
+        boolean hasTransfer = false;
         while (p < headerEnd - 2) {
             int e = index(b, p, headerEnd, (byte) '\r');
             if (e < 0 || e + 1 >= headerEnd || b[e + 1] != '\n') {
@@ -744,7 +761,8 @@ public final class Loop implements Runnable {
             r.bodyLength = (int) length;
             return end - headerEnd < length ? 0 : headerEnd + (int) length;
         }
-        int pos = headerEnd, total = 0;
+        int pos = headerEnd;
+        int total = 0;
         while (true) {
             int e = index(b, pos, end, (byte) '\r');
             if (e < 0) {
@@ -756,7 +774,8 @@ public final class Loop implements Runnable {
             if (b[e + 1] != '\n') {
                 return -1;
             }
-            int semi = index(b, pos, e, (byte) ';'), stop = semi < 0 ? e : semi;
+            int semi = index(b, pos, e, (byte) ';');
+            int stop = semi < 0 ? e : semi;
             if (stop == pos) {
                 return -1;
             }
@@ -805,10 +824,13 @@ public final class Loop implements Runnable {
     }
 
     private static void compactChunks(byte[] b, int from, int end) {
-        int pos = from, out = from;
+        int pos = from;
+        int out = from;
         while (pos < end) {
             int e = index(b, pos, end, (byte) '\r');
-            int semi = index(b, pos, e, (byte) ';'), stop = semi < 0 ? e : semi, size = 0;
+            int semi = index(b, pos, e, (byte) ';');
+            int stop = semi < 0 ? e : semi;
+            int size = 0;
             for (int i = pos; i < stop; i++) {
                 size = size * 16 + Character.digit((char) (b[i] & 255), 16);
             }
@@ -873,7 +895,8 @@ public final class Loop implements Runnable {
             while (end < to && b[end] != ',') {
                 end++;
             }
-            int a = p, z = end;
+            int a = p;
+            int z = end;
             while (a < z && (b[a] & 255) <= 32) {
                 a++;
             }

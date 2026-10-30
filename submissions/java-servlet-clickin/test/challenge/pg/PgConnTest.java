@@ -16,10 +16,11 @@ public final class PgConnTest {
         List<Unit> done = new ArrayList<>();
         PgConn conn = new PgConn(null, 0, 0, new Config("localhost", 5432, "u", "p", "d"), null,
                 Stmt.freeze());
-        Query first = new Query(Stmt.TAGS, false), second = new Query(Stmt.TAGS, false);
+        Query first = new Query(Stmt.TAGS, false);
+        Query second = new Query(Stmt.TAGS, false);
         Unit a = new Unit(done::add, u -> {}, false, false,
-                first),
-                b = new Unit(done::add, u -> {}, false, false,
+                first);
+        Unit b = new Unit(done::add, u -> {}, false, false,
                 second);
         conn.submit(a);
         conn.submit(b);
@@ -132,12 +133,14 @@ public final class PgConnTest {
         var phase = PgConn.class.getDeclaredField("phase");
         phase.setAccessible(true);
         phase.setInt(conn, 3);
-        Query q1 = new Query(Stmt.TAGS, true), q2 = new Query(Stmt.TAGS, true), q3 = new Query(Stmt.TAGS, true);
+        Query q1 = new Query(Stmt.TAGS, true);
+        Query q2 = new Query(Stmt.TAGS, true);
+        Query q3 = new Query(Stmt.TAGS, true);
         Unit a = new Unit(done::add, u -> {}, true, true,
-                q1),
-                b = new Unit(done::add, u -> {}, false, true,
-                q2),
-                c = new Unit(done::add, u -> {}, false, true,
+                q1);
+        Unit b = new Unit(done::add, u -> {}, false, true,
+                q2);
+        Unit c = new Unit(done::add, u -> {}, false, true,
                 q3);
         conn.addToGroup(a);
         conn.addToGroup(b);
@@ -154,7 +157,10 @@ public final class PgConnTest {
         var lenField = out.getClass().getDeclaredField("len");
         lenField.setAccessible(true);
         byte[] encoded = (byte[]) dataField.get(out);
-        int length = lenField.getInt(out), binds = 0, executes = 0, syncs = 0;
+        int length = lenField.getInt(out);
+        int binds = 0;
+        int executes = 0;
+        int syncs = 0;
         for (int p = 0; p < length; ) {
             int size = (encoded[p + 1] & 255) << 24
                     | (encoded[p + 2] & 255) << 16
@@ -275,14 +281,16 @@ public final class PgConnTest {
         phase.setInt(conn, 3);
         Query a = new Query(Stmt.ARTICLE, false)
                 .int8(1)
-                .text("one"),
-                b = new Query(Stmt.ARTICLE, false)
+                .text("one");
+        Query b = new Query(Stmt.ARTICLE, false)
                 .int8(2)
-                .text("two"),
-                c = new Query(Stmt.ARTICLE, false)
+                .text("two");
+        Query c = new Query(Stmt.ARTICLE, false)
                 .int8(3)
                 .text("missing");
-        Query t1 = new Query(Stmt.TAGS, false), t2 = new Query(Stmt.TAGS, false), other = new Query(Stmt.USER, false).int8(9);
+        Query t1 = new Query(Stmt.TAGS, false);
+        Query t2 = new Query(Stmt.TAGS, false);
+        Query other = new Query(Stmt.USER, false).int8(9);
         Query[] queries = {a, t1, b, other, t2, c};
         Unit[] units = new Unit[queries.length];
         for (int i = 0; i < queries.length; i++) {
@@ -299,7 +307,9 @@ public final class PgConnTest {
         var lenField = out.getClass().getDeclaredField("len");
         lenField.setAccessible(true);
         byte[] encoded = (byte[]) dataField.get(out);
-        int length = lenField.getInt(out), binds = 0, syncs = 0;
+        int length = lenField.getInt(out);
+        int binds = 0;
+        int syncs = 0;
         for (int p = 0; p < length; ) {
             int size = (encoded[p + 1] & 255) << 24
                     | (encoded[p + 2] & 255) << 16
@@ -357,7 +367,8 @@ public final class PgConnTest {
             for (int i = 0; i < queries.length; i++) {
                 encoded = (byte[]) dataField.get(out);
                 length = lenField.getInt(out);
-                int retryBinds = 0, retrySyncs = 0;
+                int retryBinds = 0;
+                int retrySyncs = 0;
                 for (int p = previousLength; p < length; ) {
                     int size = (encoded[p + 1] & 255) << 24
                             | (encoded[p + 2] & 255) << 16

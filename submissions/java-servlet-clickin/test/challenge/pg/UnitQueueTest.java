@@ -6,7 +6,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class UnitQueueTest {
     public static void main(String[] args) throws Exception {
         UnitQueue queue = new UnitQueue();
-        int producers = 4, count = 4000;
+        int producers = 4;
+        int count = 4000;
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger completed = new AtomicInteger();
         Thread[] threads = new Thread[producers];

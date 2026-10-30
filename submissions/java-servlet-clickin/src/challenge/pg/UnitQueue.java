@@ -15,7 +15,8 @@ final class UnitQueue {
     }
 
     Unit poll() {
-        Unit current = head, next = current.next;
+        Unit current = head;
+        Unit next = current.next;
         if (current == stub) {
             if (next == null) {
                 return null;

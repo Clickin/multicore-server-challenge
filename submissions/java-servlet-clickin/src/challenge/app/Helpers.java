@@ -46,7 +46,8 @@ public final class Helpers {
     }
 
     public static long viewer(Request req, Jwt jwt, boolean required) {
-        int at = req.authorizationOffset(), len = req.authorizationLength();
+        int at = req.authorizationOffset();
+        int len = req.authorizationLength();
         if (at < 0) {
             return required ? -1 : 0;
         }
@@ -97,7 +98,8 @@ public final class Helpers {
 
     public static Body body(Request req, String wrapper) throws Invalid {
         byte[] bytes = req.bytes();
-        int start = req.bodyOffset(), end = start + req.bodyLength();
+        int start = req.bodyOffset();
+        int end = start + req.bodyLength();
         Slice whole = new Slice(bytes, start, end - start);
         if (!(whole.value() instanceof Map<?, ?>)) {
             throw new Invalid();
@@ -111,7 +113,8 @@ public final class Helpers {
 
     private static Map<String, Slice> members(Slice object) throws Invalid {
         byte[] b = object.bytes();
-        int end = object.offset() + object.length(), p = space(b, object.offset(), end) + 1;
+        int end = object.offset() + object.length();
+        int p = space(b, object.offset(), end) + 1;
         Map<String, Slice> fields = new HashMap<>();
         while ((p = space(b, p, end)) < end && b[p] != '}') {
             int keyEnd = stringEnd(b, p, end);
@@ -279,7 +282,8 @@ public final class Helpers {
     public static final class Params {
         private static final String[] NAMES = {"limit", "offset", "tag", "author", "favorited"};
         private byte[] data = new byte[256];
-        private final int[] offsets = new int[5], lengths = new int[5];
+        private final int[] offsets = new int[5];
+        private final int[] lengths = new int[5];
         private int size;
 
         public byte[] bytes() {
@@ -300,7 +304,8 @@ public final class Helpers {
             }
             Arrays.fill(lengths, -1);
             size = 0;
-            int p = request.queryOffset(), end = p + request.queryLength();
+            int p = request.queryOffset();
+            int end = p + request.queryLength();
             if (p < 0 || p == end) {
                 return;
             }
@@ -364,7 +369,8 @@ public final class Helpers {
                         if (p + 1 >= end) {
                             throw new Invalid();
                         }
-                        int hi = Character.digit((char) (input[p++] & 255), 16), lo = Character.digit((char) (input[p++] & 255), 16);
+                        int hi = Character.digit((char) (input[p++] & 255), 16);
+                        int lo = Character.digit((char) (input[p++] & 255), 16);
                         if (hi < 0 || lo < 0) {
                             throw new Invalid();
                         }
@@ -404,7 +410,8 @@ public final class Helpers {
             if (len == 0) {
                 throw new Invalid();
             }
-            int n = 0, end = offsets[index] + len;
+            int n = 0;
+            int end = offsets[index] + len;
             for (int i = offsets[index];
                  i < end;
                  i++) {

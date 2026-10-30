@@ -110,7 +110,8 @@ public final class BcryptPool implements AutoCloseable {
                 }
             }
             Unit[] valid = new Unit[count];
-            String[] passwords = new String[count], salts = new String[count];
+            String[] passwords = new String[count];
+            String[] salts = new String[count];
             int size = 0;
             for (int i = 0; i < count; i++) {
                 Unit job = jobs[i];

@@ -23,12 +23,38 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 public final class Sys {
-    static final int AF_INET = 2, AF_INET6 = 10, SOCK_STREAM = 1, SOCK_NONBLOCK = 0x800, SOCK_CLOEXEC = 0x80000;
-    static final int SOL_SOCKET = 1, SO_REUSEADDR = 2, SO_LINGER = 13, SO_REUSEPORT = 15, SO_RCVTIMEO = 20, SO_SNDTIMEO = 21, IPPROTO_TCP = 6, TCP_NODELAY = 1, TCP_DEFER_ACCEPT = 9;
-    static final int F_SETFL = 4, O_NONBLOCK = 0x800;
-    public static final int EPOLL_CLOEXEC = 0x80000, EPOLL_CTL_ADD = 1, EPOLL_CTL_MOD = 3;
-    public static final int EPOLLIN = 0x1, EPOLLOUT = 0x4, EPOLLERR = 0x8, EPOLLHUP = 0x10;
-    public static final int EINTR = 4, EAGAIN = 11, EBUSY = 16, ENFILE = 23, EMFILE = 24, ETIME = 62, ECONNABORTED = 103, ENOBUFS = 105, ECANCELED = 125;
+    static final int AF_INET = 2;
+    static final int AF_INET6 = 10;
+    static final int SOCK_STREAM = 1;
+    static final int SOCK_NONBLOCK = 0x800;
+    static final int SOCK_CLOEXEC = 0x80000;
+    static final int SOL_SOCKET = 1;
+    static final int SO_REUSEADDR = 2;
+    static final int SO_LINGER = 13;
+    static final int SO_REUSEPORT = 15;
+    static final int SO_RCVTIMEO = 20;
+    static final int SO_SNDTIMEO = 21;
+    static final int IPPROTO_TCP = 6;
+    static final int TCP_NODELAY = 1;
+    static final int TCP_DEFER_ACCEPT = 9;
+    static final int F_SETFL = 4;
+    static final int O_NONBLOCK = 0x800;
+    public static final int EPOLL_CLOEXEC = 0x80000;
+    public static final int EPOLL_CTL_ADD = 1;
+    public static final int EPOLL_CTL_MOD = 3;
+    public static final int EPOLLIN = 0x1;
+    public static final int EPOLLOUT = 0x4;
+    public static final int EPOLLERR = 0x8;
+    public static final int EPOLLHUP = 0x10;
+    public static final int EINTR = 4;
+    public static final int EAGAIN = 11;
+    public static final int EBUSY = 16;
+    public static final int ENFILE = 23;
+    public static final int EMFILE = 24;
+    public static final int ETIME = 62;
+    public static final int ECONNABORTED = 103;
+    public static final int ENOBUFS = 105;
+    public static final int ECANCELED = 125;
 
     private static final boolean X86 = switch (System.getProperty("os.arch")) {
         case "amd64", "x86_64" -> true;
@@ -81,7 +107,9 @@ public final class Sys {
             FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_INT, JAVA_INT,
                     JAVA_LONG),
             ERRNO);
-    private static final long SYS_IO_URING_SETUP = 425, SYS_IO_URING_ENTER = 426, SYS_IO_URING_REGISTER = 427;
+    private static final long SYS_IO_URING_SETUP = 425;
+    private static final long SYS_IO_URING_ENTER = 426;
+    private static final long SYS_IO_URING_REGISTER = 427;
     private static final MethodHandle URING_SETUP = fn("syscall", FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, ADDRESS),
             Option.firstVariadicArg(1), ERRNO);
     private static final MethodHandle URING_REGISTER = fn("syscall", FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT),

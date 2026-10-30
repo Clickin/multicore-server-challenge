@@ -54,7 +54,8 @@ public final class BCrypt {
         byte[] salt = decode(saltString, 7, 29, 16);
         byte[] bytes = password.getBytes(StandardCharsets.UTF_8);
         byte[] key = Arrays.copyOf(bytes, Math.min(72, bytes.length + 1));
-        int[] words = words(key, 18), saltWords = words(salt, 4);
+        int[] words = words(key, 18);
+        int[] saltWords = words(salt, 4);
         System.arraycopy(INITIAL, 0, p, 0, 18);
         System.arraycopy(INITIAL, 18, s, 0, 1024);
         xor(words);
@@ -146,7 +147,8 @@ public final class BCrypt {
                 continue;
             }
             BCrypt[] lanes = new BCrypt[count];
-            int[][] keys = new int[count][], saltWords = new int[count][];
+            int[][] keys = new int[count][];
+            int[][] saltWords = new int[count][];
             for (int j = 0; j < count; j++) {
                 int k = indexes[j];
                 lanes[j] = new BCrypt();
@@ -194,10 +196,14 @@ public final class BCrypt {
     }
 
     private static void expand2(BCrypt[] lanes, int[][] salt) {
-        int[] p0 = lanes[0].p, s0 = lanes[0].s;
-        int l0 = 0, r0 = 0;
-        int[] p1 = lanes[1].p, s1 = lanes[1].s;
-        int l1 = 0, r1 = 0;
+        int[] p0 = lanes[0].p;
+        int[] s0 = lanes[0].s;
+        int l0 = 0;
+        int r0 = 0;
+        int[] p1 = lanes[1].p;
+        int[] s1 = lanes[1].s;
+        int l1 = 0;
+        int r1 = 0;
         for (int part = 0; part < 2; part++) {
             int length = part == 0 ? 18 : 1024;
             for (int i = 0; i < length; i += 2) {
@@ -270,14 +276,22 @@ public final class BCrypt {
     }
 
     private static void expand4(BCrypt[] lanes, int[][] salt) {
-        int[] p0 = lanes[0].p, s0 = lanes[0].s;
-        int l0 = 0, r0 = 0;
-        int[] p1 = lanes[1].p, s1 = lanes[1].s;
-        int l1 = 0, r1 = 0;
-        int[] p2 = lanes[2].p, s2 = lanes[2].s;
-        int l2 = 0, r2 = 0;
-        int[] p3 = lanes[3].p, s3 = lanes[3].s;
-        int l3 = 0, r3 = 0;
+        int[] p0 = lanes[0].p;
+        int[] s0 = lanes[0].s;
+        int l0 = 0;
+        int r0 = 0;
+        int[] p1 = lanes[1].p;
+        int[] s1 = lanes[1].s;
+        int l1 = 0;
+        int r1 = 0;
+        int[] p2 = lanes[2].p;
+        int[] s2 = lanes[2].s;
+        int l2 = 0;
+        int r2 = 0;
+        int[] p3 = lanes[3].p;
+        int[] s3 = lanes[3].s;
+        int l3 = 0;
+        int r3 = 0;
         for (int part = 0; part < 2; part++) {
             int length = part == 0 ? 18 : 1024;
             for (int i = 0; i < length; i += 2) {
@@ -433,7 +447,8 @@ public final class BCrypt {
 
     private long expandP(int[] salt, long block) {
         int[] array = p;
-        int left = (int) (block >>> 32), right = (int) block;
+        int left = (int) (block >>> 32);
+        int right = (int) block;
         for (int i = 0; i < array.length; i += 2) {
             if (salt != null) {
                 left ^= salt[i & 3];
@@ -449,7 +464,8 @@ public final class BCrypt {
     }
 
     private void expandS(int[] salt, long block) {
-        int[] p = this.p, s = this.s;
+        int[] p = this.p;
+        int[] s = this.s;
         if (p.length < 18 || s.length < 1024) {
             throw new AssertionError();
         }
@@ -471,7 +487,8 @@ public final class BCrypt {
         int p15 = p[15];
         int p16 = p[16];
         int p17 = p[17];
-        int left = (int) (block >>> 32), right = (int) block;
+        int left = (int) (block >>> 32);
+        int right = (int) block;
         for (int i = 0; i < 1024; i += 2) {
             if (salt != null) {
                 left ^= salt[(i + 2) & 3];
@@ -508,7 +525,8 @@ public final class BCrypt {
     }
 
     private long encrypt(int left, int right) {
-        int[] p = this.p, s = this.s;
+        int[] p = this.p;
+        int[] s = this.s;
         if (p.length < 18 || s.length < 1024) {
             throw new AssertionError();
         }
@@ -572,7 +590,9 @@ public final class BCrypt {
     private static byte[] decode(String s, int from, int end,
             int size) {
         byte[] b = new byte[size];
-        int buffer = 0, bits = 0, p = 0;
+        int buffer = 0;
+        int bits = 0;
+        int p = 0;
         for (int i = from; i < end; i++) {
             int v = B64.indexOf(s.charAt(i));
             if (v < 0) {
@@ -594,7 +614,9 @@ public final class BCrypt {
     }
 
     private static int[] initial() {
-        int count = 1042, bits = count * 32, guard = 64;
+        int count = 1042;
+        int bits = count * 32;
+        int guard = 64;
         BigInteger one = BigInteger.ONE.shiftLeft(bits + guard);
         BigInteger pi = atan(5, one)
                 .shiftLeft(4)
@@ -609,7 +631,9 @@ public final class BCrypt {
     }
 
     private static BigInteger atan(int x, BigInteger one) {
-        BigInteger square = BigInteger.valueOf((long) x * x), power = one.divide(BigInteger.valueOf(x)), sum = BigInteger.ZERO;
+        BigInteger square = BigInteger.valueOf((long) x * x);
+        BigInteger power = one.divide(BigInteger.valueOf(x));
+        BigInteger sum = BigInteger.ZERO;
         for (int i = 0; power.signum() != 0; i++) {
             BigInteger term = power.divide(BigInteger.valueOf(2L * i + 1));
             sum = (i & 1) == 0 ? sum.add(term) : sum.subtract(term);

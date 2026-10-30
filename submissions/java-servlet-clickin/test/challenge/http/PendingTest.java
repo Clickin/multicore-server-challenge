@@ -6,7 +6,9 @@ import challenge.http.Loop.Pending;
 public final class PendingTest {
     public static void main(String[] args) {
         Pending queue = new Pending();
-        Conn first = new Conn(1), second = new Conn(2), third = new Conn(3);
+        Conn first = new Conn(1);
+        Conn second = new Conn(2);
+        Conn third = new Conn(3);
         queue.add(first);
         queue.add(second);
         queue.add(first);

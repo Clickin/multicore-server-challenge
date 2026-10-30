@@ -31,7 +31,9 @@ public final class PgConn {
             if (!"postgres".equals(uri.getScheme()) && !"postgresql".equals(uri.getScheme())) {
                 throw new IllegalArgumentException("invalid postgres URL");
             }
-            String info = uri.getRawUserInfo(), user = System.getProperty("user.name"), password = "";
+            String info = uri.getRawUserInfo();
+            String user = System.getProperty("user.name");
+            String password = "";
             if (info != null) {
                 int colon = info.indexOf(':');
                 user = decode(colon < 0 ? info : info.substring(0, colon));
@@ -56,20 +58,28 @@ public final class PgConn {
     }
 
     private final Sys sys;
-    private final int epoll, tag;
+    private final int epoll;
+    private final int tag;
     private final Config config;
     private final InetAddress address;
     private final List<Statement> statements;
     private final byte[][] statementNames;
-    private static final byte[] BEGIN = "begin".getBytes(StandardCharsets.US_ASCII), COMMIT = "commit".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] BEGIN = "begin".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] COMMIT = "commit".getBytes(StandardCharsets.US_ASCII);
     private final ArrayDeque<Unit> pending = new ArrayDeque<>();
-    private final Buffer out = new Buffer(), in = new Buffer();
-    private int sent, phase, queryIndex, fd = -1;
+    private final Buffer out = new Buffer();
+    private final Buffer in = new Buffer();
+    private int sent;
+    private int phase;
+    private int queryIndex;
+    private int fd = -1;
     private long lastAttempt;
     private Unit transaction;
     private Unit[] group;
-    private int groupSize, groupIndex;
-    private boolean retrying, readRound;
+    private int groupSize;
+    private int groupIndex;
+    private boolean retrying;
+    private boolean readRound;
     private int[][] roundIndexes;
     private int[] roundCounts;
     private Query[] readBatches;
@@ -111,9 +121,12 @@ public final class PgConn {
          * single: per-unit statement; batch: coalesced statement or -1;
          * params/types: unit parameter order and batch array OIDs.
          */
-        final int single, batch;
+        final int single;
 
-        final int[] params, types;
+        final int batch;
+
+        final int[] params;
+        final int[] types;
 
         Read(int single, int batch, int[] params,
              int[] types) {
@@ -140,8 +153,10 @@ public final class PgConn {
     }
 
     private Scram scram;
-    private String error, state;
-    private boolean failed, connected;
+    private String error;
+    private String state;
+    private boolean failed;
+    private boolean connected;
     private static final int SO_ERROR = 4;
 
     public PgConn(Sys sys, int epoll, int tag,
@@ -465,7 +480,8 @@ public final class PgConn {
             if (in.len - p < size + 1) {
                 break;
             }
-            int at = p + 5, end = p + size + 1;
+            int at = p + 5;
+            int end = p + size + 1;
             byte type = in.data[p];
             if (type == 'E') {
                 errorFields(in.data, at, end);
@@ -812,7 +828,8 @@ public final class PgConn {
     private void errorFields(byte[] b, int p, int end) {
         state = error = null;
         while (p < end && b[p] != 0) {
-            int field = b[p++], start = p;
+            int field = b[p++];
+            int start = p;
             while (p < end && b[p] != 0) {
                 p++;
             }
@@ -916,7 +933,8 @@ public final class PgConn {
 
     private static final class Scram {
         final byte[] password;
-        final String nonce, bare;
+        final String nonce;
+        final String bare;
         byte[] signature;
 
         Scram(String password) {
@@ -932,7 +950,8 @@ public final class PgConn {
         }
 
         byte[] next(String server) throws Exception {
-            String r = null, salt = null;
+            String r = null;
+            String salt = null;
             int iterations = 0;
             for (String part : server.split(",")) {
                 if (part.startsWith("r=")) {
@@ -954,7 +973,8 @@ public final class PgConn {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(password.length == 0 ? new byte[] {0} : password, "HmacSHA256"));
             mac.update(Base64.getDecoder().decode(salt));
-            byte[] u = mac.doFinal(new byte[] {0, 0, 0, 1}), salted = u.clone();
+            byte[] u = mac.doFinal(new byte[] {0, 0, 0, 1});
+            byte[] salted = u.clone();
             for (int i = 1; i < iterations; i++) {
                 u = mac.doFinal(u);
                 for (int j = 0; j < u.length; j++) {

@@ -13,13 +13,21 @@ import java.util.Arrays;
 public final class Query {
     public int statementId;
     public boolean write;
-    public String sqlState, errorMessage;
+    public String sqlState;
+    public String errorMessage;
     public long commandRowCount = -1;
     private static final int MAX_RETAINED_BYTES = 64 * 1024;
     private final int initialColumns;
-    private byte[] params = new byte[256], rows;
-    private int paramLength, paramCount, rowLength, rowCount, columnCount;
-    private int[] rowOffsets, columnOffsets, columnLengths;
+    private byte[] params = new byte[256];
+    private byte[] rows;
+    private int paramLength;
+    private int paramCount;
+    private int rowLength;
+    private int rowCount;
+    private int columnCount;
+    private int[] rowOffsets;
+    private int[] columnOffsets;
+    private int[] columnLengths;
 
     public Query(int statementId, boolean write) {
         this.statementId = statementId;
@@ -246,7 +254,9 @@ public final class Query {
         if (offset < 0 || length < 2 || offset > data.length - length) {
             throw new IllegalArgumentException("DataRow bounds");
         }
-        int end = offset + length, cols = (data[offset] & 255) << 8 | data[offset + 1] & 255, p = offset + 2;
+        int end = offset + length;
+        int cols = (data[offset] & 255) << 8 | data[offset + 1] & 255;
+        int p = offset + 2;
         for (int i = 0; i < cols; i++) {
             if (end - p < 4) {
                 throw new IllegalArgumentException("short DataRow");
@@ -362,7 +372,8 @@ public final class Query {
     }
 
     public int arrayCount(int row, int column) {
-        int p = offset(row, column), n = length(row, column);
+        int p = offset(row, column);
+        int n = length(row, column);
         if (n < 12) {
             throw new IllegalStateException("invalid array");
         }
@@ -382,7 +393,9 @@ public final class Query {
 
     /** Returns the byte offset of an array element, or -1 for SQL NULL. */
     public int arrayElementOffset(int row, int column, int index) {
-        int count = arrayCount(row, column), p = offset(row, column) + 20, end = offset(row, column) + length(row, column);
+        int count = arrayCount(row, column);
+        int p = offset(row, column) + 20;
+        int end = offset(row, column) + length(row, column);
         if (index < 0 || index >= count) {
             throw new IndexOutOfBoundsException();
         }

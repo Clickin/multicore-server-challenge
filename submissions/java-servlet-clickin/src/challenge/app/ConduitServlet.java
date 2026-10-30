@@ -73,7 +73,8 @@ public final class ConduitServlet extends HttpServlet {
         DELETE_COMMENT(Stmt.DELETE_COMMENT, Auth.REQUIRED, true, true);
         final int stmt;
         final Auth auth;
-        final boolean writes, targeted;
+        final boolean writes;
+        final boolean targeted;
 
         Route(int stmt, Auth auth, boolean writes,
               boolean targeted) {
@@ -104,15 +105,20 @@ public final class ConduitServlet extends HttpServlet {
         "PUT",
         "DELETE"
     };
-    private static final String[] RESOURCE_WORDS = {null, "tags", "user", "users", "profiles", "articles"}, SUB_WORDS = {null, "login", "feed", "follow", "favorite", "comments"};
-    private static final int API = 1, COUNTS = 7;
+    private static final String[] RESOURCE_WORDS = {null, "tags", "user", "users", "profiles", "articles"};
+    private static final String[] SUB_WORDS = {null, "login", "feed", "follow", "favorite", "comments"};
+    private static final int API = 1;
+    private static final int COUNTS = 7;
     private static final int[] LAST_SEGMENT = {1, 1, 1, 2, 3, 3,
             3};
     private static final long HASH = 0x9e3779b97f4a7c4bL;
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
     private static final long[] WORD = new long[WORDS.length];
     private static final int[] LENGTH = new int[WORDS.length];
-    private static final byte[] TOKEN = new byte[32], RESOURCE = new byte[WORDS.length], SUB = new byte[WORDS.length], VERB = new byte[WORDS.length];
+    private static final byte[] TOKEN = new byte[32];
+    private static final byte[] RESOURCE = new byte[WORDS.length];
+    private static final byte[] SUB = new byte[WORDS.length];
+    private static final byte[] VERB = new byte[WORDS.length];
     private static final Verb[] VERBS = Verb.values();
     private static final Route[] ROUTES = new Route[Route.values().length + 1];
     private static final byte[] ROUTE_TABLE = new byte[RESOURCE_WORDS.length * SUB_WORDS.length * COUNTS * VERBS.length];
@@ -210,8 +216,10 @@ public final class ConduitServlet extends HttpServlet {
     static Route route(Request r, int[] start, int[] end,
                        int count, Verb verb) {
         byte[] b = r.bytes();
-        int c = Math.max(0, Math.min(count, COUNTS - 1)), last = LAST_SEGMENT[c];
-        int d = token(b, start[0], end[0]) ^ API, api = ~((d | -d) >> 31);
+        int c = Math.max(0, Math.min(count, COUNTS - 1));
+        int last = LAST_SEGMENT[c];
+        int d = token(b, start[0], end[0]) ^ API;
+        int api = ~((d | -d) >> 31);
         int resource = RESOURCE[token(b, start[1], end[1])] & api;
         return ROUTES[ROUTE_TABLE[key(resource, SUB[token(b, start[last], end[last])], c, verb.ordinal())]];
     }
@@ -230,7 +238,8 @@ public final class ConduitServlet extends HttpServlet {
     public void service(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Request req = (Request) request;
         Response res = (Response) response;
-        int[] start = req.segmentStarts, end = req.segmentEnds;
+        int[] start = req.segmentStarts;
+        int[] end = req.segmentEnds;
         int count = segments(req, start, end);
         Verb verb = verb(req);
         if (count == 1 && eq(req, start[0], end[0], "__async") && verb == GET) {
@@ -264,10 +273,18 @@ public final class ConduitServlet extends HttpServlet {
                 return;
             }
         }
-        String username = null, email = null, password = null, bio = null, image = null, title = null, description = null, bodyText = null;
+        String username = null;
+        String email = null;
+        String password = null;
+        String bio = null;
+        String image = null;
+        String title = null;
+        String description = null;
+        String bodyText = null;
         String[] tags = null;
         long commentId = 0;
-        int limit = 20, offset = 0;
+        int limit = 20;
+        int offset = 0;
         try {
             if (route == ARTICLES || route == FEED) {
                 slot.params.parse(req);
@@ -362,7 +379,9 @@ public final class ConduitServlet extends HttpServlet {
             if (c < 128) {
                 continue;
             }
-            int n, min, value;
+            int n;
+            int min;
+            int value;
             if (c >= 0xc2 && c <= 0xdf) {
                 n = 1;
                 min = 0x80;
@@ -410,7 +429,8 @@ public final class ConduitServlet extends HttpServlet {
         return true;
     }
 
-    private static final long SLASHES = 0x2f2f2f2f2f2f2f2fL, LOW7 = 0x7f7f7f7f7f7f7f7fL;
+    private static final long SLASHES = 0x2f2f2f2f2f2f2f2fL;
+    private static final long LOW7 = 0x7f7f7f7f7f7f7f7fL;
 
     // Branchless split: '/' bytes are found 8 at a time (exact zero-byte test on w^SLASHES), stored to end[] with
     // unconditional writes, and every invalid case is folded into a mask. Only the word loop's trip count depends on
@@ -418,10 +438,14 @@ public final class ConduitServlet extends HttpServlet {
     // More than 4 slashes in one word implies an empty segment, so leftover bits mark the path invalid.
     static int segments(Request r, int[] start, int[] end) {
         byte[] b = r.bytes();
-        int p = r.pathOffset() + 1, limit = r.pathOffset() + r.pathLength(), last = end.length - 1, n = 0;
+        int p = r.pathOffset() + 1;
+        int limit = r.pathOffset() + r.pathLength();
+        int last = end.length - 1;
+        int n = 0;
         long leftover = 0;
         for (int i = p; i < limit; i += 8) {
-            long x = (long) LONG.get(b, i) ^ SLASHES, m = ~(((x & LOW7) + LOW7) | x | LOW7) & (-1L >>> ((8 - Math.min(limit - i, 8)) << 3));
+            long x = (long) LONG.get(b, i) ^ SLASHES;
+            long m = ~(((x & LOW7) + LOW7) | x | LOW7) & (-1L >>> ((8 - Math.min(limit - i, 8)) << 3));
             for (int k = 0; k < 4; k++) {
                 end[Math.min(n, last)] = i + (Long.numberOfTrailingZeros(m) >>> 3);
                 n += (int) ((m | -m) >>> 63);
@@ -434,7 +458,8 @@ public final class ConduitServlet extends HttpServlet {
         for (int k = 1; k < start.length; k++) {
             start[k] = end[k - 1] + 1;
         }
-        int count = (n + 1) & ((p - limit) >> 31), invalid = (int) ((leftover | -leftover) >> 63) | ((start.length - count) >> 31);
+        int count = (n + 1) & ((p - limit) >> 31);
+        int invalid = (int) ((leftover | -leftover) >> 63) | ((start.length - count) >> 31);
         for (int k = 0; k < start.length; k++) {
             int d = end[k] - start[k];
             invalid |= ~((d | -d) >> 31) & ((k - count) >> 31);
@@ -447,20 +472,33 @@ public final class ConduitServlet extends HttpServlet {
         final Jwt jwt;
         final Query query = new Query(0, false);
         Query secondary;
-        final Query[] one = {query}, two = new Query[2];
+        final Query[] one = {query};
+        final Query[] two = new Query[2];
         final Unit unit;
         final Params params = new Params();
         final byte[] signed = new byte[256];
         Response response;
         AsyncContext async;
         Route route;
-        int phase, tokenOffset, tokenLength, targetOffset, targetLength;
+        int phase;
+        int tokenOffset;
+        int tokenLength;
+        int targetOffset;
+        int targetLength;
         long viewer;
         boolean targetValid;
-        String username, email, password, bio, image, title, description, bodyText;
+        String username;
+        String email;
+        String password;
+        String bio;
+        String image;
+        String title;
+        String description;
+        String bodyText;
         String[] tags;
         long commentId;
-        int limit, offset;
+        int limit;
+        int offset;
 
         Slot(Request request) {
             this.request = request;
@@ -780,7 +818,8 @@ public final class ConduitServlet extends HttpServlet {
         void writeUser() {
             Query q = query;
             byte[] token = request.bytes();
-            int at = tokenOffset, len = tokenLength;
+            int at = tokenOffset;
+            int len = tokenLength;
             if (route == REGISTER || route == LOGIN) {
                 at = 0;
                 len = jwt.sign(q.int8At(0, 0), System.currentTimeMillis() / 1000, signed, 0);

@@ -25,11 +25,15 @@ public final class Jwt {
     private final Mac mac;
     private final byte[] digest = new byte[32];
     private final byte[] signature = new byte[32];
-    private final byte[] headerJson = new byte[4096], payloadJson = new byte[4096];
+    private final byte[] headerJson = new byte[4096];
+    private final byte[] payloadJson = new byte[4096];
     private byte[] json;
-    private int pos, limit;
+    private int pos;
+    private int limit;
     private final byte[] payload = new byte[128];
-    private static final byte[] SUB = "{\"sub\":\"".getBytes(StandardCharsets.US_ASCII), IAT = "\",\"iat\":".getBytes(StandardCharsets.US_ASCII), EXP = ",\"exp\":".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUB = "{\"sub\":\"".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] IAT = "\",\"iat\":".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] EXP = ",\"exp\":".getBytes(StandardCharsets.US_ASCII);
 
     public Jwt(String secret) throws GeneralSecurityException {
         mac = Mac.getInstance("HmacSHA256");
@@ -75,7 +79,9 @@ public final class Jwt {
                 || offset > token.length - length) {
             return -1;
         }
-        int end = offset + length, dot1 = -1, dot2 = -1;
+        int end = offset + length;
+        int dot1 = -1;
+        int dot2 = -1;
         for (int i = offset; i < end; i++) {
             if (token[i] == '.') {
                 if (dot1 < 0) {
@@ -116,7 +122,9 @@ public final class Jwt {
         json = bytes;
         pos = 0;
         limit = length;
-        boolean foundAlg = false, foundExp = false, foundSub = false;
+        boolean foundAlg = false;
+        boolean foundExp = false;
+        boolean foundSub = false;
         subject = -1;
         space();
         if (!take('{')) {
@@ -236,7 +244,8 @@ public final class Jwt {
                 return false;
             }
             if (c >= 128) {
-                int count, code;
+                int count;
+                int code;
                 if (c >= 0xc2 && c <= 0xdf) {
                     count = 1;
                     code = c & 31;
@@ -466,7 +475,10 @@ public final class Jwt {
         if ((n & 3) == 1 || (long) n * 3 / 4 > out.length) {
             return -1;
         }
-        int bits = 0, count = 0, p = 0, invalid = 0;
+        int bits = 0;
+        int count = 0;
+        int p = 0;
+        int invalid = 0;
         for (int i = from; i < to; i++) {
             int v = INDEX[in[i] & 255];
             invalid |= v;
@@ -513,7 +525,8 @@ public final class Jwt {
 
     private static int encode(byte[] source, int length, byte[] out,
             int at) {
-        int start = at, i = 0;
+        int start = at;
+        int i = 0;
         while (i + 3 <= length) {
             int v = (source[i++] & 255) << 16 | (source[i++] & 255) << 8 | (source[i++] & 255);
             out[at++] = ALPHABET[v >>> 18];
