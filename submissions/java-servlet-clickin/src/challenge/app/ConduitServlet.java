@@ -18,9 +18,39 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static challenge.app.ConduitServlet.Route.*;
+
 public final class ConduitServlet extends HttpServlet {
-    private static final int TAGS=1, REGISTER=2, LOGIN=3, USER=4, UPDATE=5, PROFILE=6, FOLLOW=7, UNFOLLOW=8, STUB=9, ARTICLES=10, ARTICLES_TAG=11, ARTICLES_AUTHOR=12, ARTICLES_FAVORITED=13, FEED=14, ARTICLE=15, COMMENTS=16, CREATE_ARTICLE=17, UPDATE_ARTICLE=18, DELETE_ARTICLE=19, FAVORITE=20, UNFAVORITE=21, CREATE_COMMENT=22, DELETE_COMMENT=23;
-    private static final int[] STATEMENTS={0,Stmt.TAGS,Stmt.REGISTER,Stmt.LOGIN,Stmt.USER,Stmt.UPDATE_USER,Stmt.PROFILE,Stmt.FOLLOW,Stmt.UNFOLLOW,0,Stmt.ARTICLES,Stmt.ARTICLES_TAG,Stmt.ARTICLES_AUTHOR,Stmt.ARTICLES_FAVORITED,Stmt.FEED,Stmt.ARTICLE,Stmt.COMMENTS,Stmt.CREATE_ARTICLE,Stmt.UPDATE_ARTICLE,Stmt.DELETE_ARTICLE,Stmt.FAVORITE,Stmt.UNFAVORITE,Stmt.CREATE_COMMENT,Stmt.DELETE_COMMENT};
+    enum Auth { NONE, OPTIONAL, REQUIRED }
+    enum Route {
+        TAGS(Stmt.TAGS), REGISTER(Stmt.REGISTER), LOGIN(Stmt.LOGIN), USER(Stmt.USER), UPDATE(Stmt.UPDATE_USER),
+        PROFILE(Stmt.PROFILE), FOLLOW(Stmt.FOLLOW), UNFOLLOW(Stmt.UNFOLLOW),
+        ARTICLES(Stmt.ARTICLES), ARTICLES_TAG(Stmt.ARTICLES_TAG), ARTICLES_AUTHOR(Stmt.ARTICLES_AUTHOR), ARTICLES_FAVORITED(Stmt.ARTICLES_FAVORITED), FEED(Stmt.FEED),
+        ARTICLE(Stmt.ARTICLE), COMMENTS(Stmt.COMMENTS), CREATE_ARTICLE(Stmt.CREATE_ARTICLE), UPDATE_ARTICLE(Stmt.UPDATE_ARTICLE), DELETE_ARTICLE(Stmt.DELETE_ARTICLE),
+        FAVORITE(Stmt.FAVORITE), UNFAVORITE(Stmt.UNFAVORITE), CREATE_COMMENT(Stmt.CREATE_COMMENT), DELETE_COMMENT(Stmt.DELETE_COMMENT);
+        final int stmt;
+        Route(int stmt) { this.stmt=stmt; }
+        // Switch expressions without default: adding a route fails compilation until every property is decided.
+        Auth auth() {
+            return switch(this) {
+                case TAGS,REGISTER,LOGIN -> Auth.NONE;
+                case PROFILE,ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,ARTICLE,COMMENTS -> Auth.OPTIONAL;
+                case USER,UPDATE,FOLLOW,UNFOLLOW,FEED,CREATE_ARTICLE,UPDATE_ARTICLE,DELETE_ARTICLE,FAVORITE,UNFAVORITE,CREATE_COMMENT,DELETE_COMMENT -> Auth.REQUIRED;
+            };
+        }
+        boolean writes() {
+            return switch(this) {
+                case REGISTER,UPDATE,FOLLOW,UNFOLLOW,CREATE_ARTICLE,UPDATE_ARTICLE,DELETE_ARTICLE,FAVORITE,UNFAVORITE,CREATE_COMMENT,DELETE_COMMENT -> true;
+                case TAGS,LOGIN,USER,PROFILE,ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,FEED,ARTICLE,COMMENTS -> false;
+            };
+        }
+        boolean targeted() {
+            return switch(this) {
+                case PROFILE,FOLLOW,UNFOLLOW,ARTICLE,COMMENTS,UPDATE_ARTICLE,DELETE_ARTICLE,FAVORITE,UNFAVORITE,CREATE_COMMENT,DELETE_COMMENT -> true;
+                case TAGS,REGISTER,LOGIN,USER,UPDATE,ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,FEED,CREATE_ARTICLE -> false;
+            };
+        }
+    }
     private final PgDispatcher dispatcher;
     private final BcryptPool bcrypt;
     private final String secret;
@@ -34,15 +64,15 @@ public final class ConduitServlet extends HttpServlet {
             AsyncContext async=req.startAsync(); req.loop().post(new Task(){ public void run(){async.complete();} }); return;
         }
         if (count==1 && eq(req,start[0],end[0],"__echo") && post) { res.getOutputStream().write(req.bytes(),req.bodyOffset(),req.bodyLength()); return; }
-        int route=0;
+        Route route=null;
         if(count>=2 && eq(req,start[0],end[0],"api")) {
             if(count==2 && eq(req,start[1],end[1],"tags") && get) route=TAGS;
             else if(count==2 && eq(req,start[1],end[1],"users") && post) route=REGISTER;
             else if(count==3 && eq(req,start[1],end[1],"users") && eq(req,start[2],end[2],"login") && post) route=LOGIN;
-            else if(count==2 && eq(req,start[1],end[1],"user")) route=get?USER:put?UPDATE:0;
+            else if(count==2 && eq(req,start[1],end[1],"user")) route=get?USER:put?UPDATE:null;
             else if(eq(req,start[1],end[1],"profiles") && count>=3) {
                 if(count==3 && get) route=PROFILE;
-                else if(count==4 && eq(req,start[3],end[3],"follow")) route=post?FOLLOW:delete?UNFOLLOW:0;
+                else if(count==4 && eq(req,start[3],end[3],"follow")) route=post?FOLLOW:delete?UNFOLLOW:null;
             } else if(eq(req,start[1],end[1],"articles")) {
                 if(count==2 && (get||post)) route=get?ARTICLES:CREATE_ARTICLE;
                 else if(count==3 && (get||put||delete)) route=get?(eq(req,start[2],end[2],"feed")?FEED:ARTICLE):put?UPDATE_ARTICLE:DELETE_ARTICLE;
@@ -51,13 +81,13 @@ public final class ConduitServlet extends HttpServlet {
                 else if(count==5 && eq(req,start[3],end[3],"comments") && delete) route=DELETE_COMMENT;
             }
         }
-        if(route==0) { Helpers.error(res,404,"not found"); return; }
-        if(route==STUB) { Helpers.error(res,501,"not implemented"); return; }
+        if(route==null) { Helpers.error(res,404,"not found"); return; }
         Slot slot=(Slot)req.applicationSlot;
         if(slot==null) req.applicationSlot=slot=new Slot(req);
         long viewer=0;
-        if(route==USER || route==UPDATE || route==PROFILE || route==FOLLOW || route==UNFOLLOW || route>=ARTICLES) {
-            viewer=Helpers.viewer(req,slot.jwt,route==USER || route==UPDATE || route==FOLLOW || route==UNFOLLOW || route==FEED || route>=CREATE_ARTICLE);
+        Auth auth=route.auth();
+        if(auth!=Auth.NONE) {
+            viewer=Helpers.viewer(req,slot.jwt,auth==Auth.REQUIRED);
             if(viewer<0) { Helpers.error(res,401,"unauthorized"); return; }
         }
         String username=null,email=null,password=null,bio=null,image=null,title=null,description=null,bodyText=null; String[] tags=null; long commentId=0;
@@ -74,19 +104,22 @@ public final class ConduitServlet extends HttpServlet {
             }
         } catch(Helpers.Invalid | IllegalArgumentException e) { Helpers.error(res,422,"invalid parameters"); return; }
         try {
-            if(route==REGISTER || route==LOGIN || route==UPDATE) {
-                Helpers.Body body=Helpers.body(req,"user");
-                if(route!=LOGIN) username=Helpers.field(body,"username",route==REGISTER,true);
-                email=Helpers.field(body,"email",route!=UPDATE,true);
-                password=Helpers.password(body,route!=UPDATE);
-                if(route==UPDATE) { bio=Helpers.field(body,"bio",false,false); image=Helpers.field(body,"image",false,false); }
+            switch(route) {
+                case REGISTER,LOGIN,UPDATE -> {
+                    Helpers.Body body=Helpers.body(req,"user");
+                    if(route!=LOGIN) username=Helpers.field(body,"username",route==REGISTER,true);
+                    email=Helpers.field(body,"email",route!=UPDATE,true);
+                    password=Helpers.password(body,route!=UPDATE);
+                    if(route==UPDATE) { bio=Helpers.field(body,"bio",false,false); image=Helpers.field(body,"image",false,false); }
+                }
+                case CREATE_ARTICLE,UPDATE_ARTICLE -> {
+                    Helpers.Body body=Helpers.body(req,"article"); boolean required=route==CREATE_ARTICLE;
+                    title=Helpers.field(body,"title",required,true); description=Helpers.field(body,"description",required,true); bodyText=Helpers.field(body,"body",required,true);
+                    if(required) { tags=Helpers.stringArray(body,"tagList"); if(tags==null)tags=new String[0]; }
+                }
+                case CREATE_COMMENT -> bodyText=Helpers.field(Helpers.body(req,"comment"),"body",true,true);
+                default -> {}
             }
-            if(route==CREATE_ARTICLE || route==UPDATE_ARTICLE) {
-                Helpers.Body body=Helpers.body(req,"article"); boolean required=route==CREATE_ARTICLE;
-                title=Helpers.field(body,"title",required,true); description=Helpers.field(body,"description",required,true); bodyText=Helpers.field(body,"body",required,true);
-                if(required) { tags=Helpers.stringArray(body,"tagList"); if(tags==null)tags=new String[0]; }
-            }
-            if(route==CREATE_COMMENT) bodyText=Helpers.field(Helpers.body(req,"comment"),"body",true,true);
         } catch(Helpers.Invalid e) { Helpers.error(res,422,"invalid body"); return; }
         if(route==DELETE_COMMENT) {
             try { commentId=Long.parseLong(new String(req.bytes(),start[4],end[4]-start[4],StandardCharsets.UTF_8)); }
@@ -97,7 +130,7 @@ public final class ConduitServlet extends HttpServlet {
         slot.limit=limit; slot.offset=offset;
         slot.tokenOffset=req.authorizationOffset()<0?0:req.authorizationOffset()+6;
         slot.tokenLength=req.authorizationOffset()<0?0:req.authorizationLength()-6;
-        if(route==PROFILE || route==FOLLOW || route==UNFOLLOW || route==ARTICLE || route==COMMENTS || route>=UPDATE_ARTICLE) { slot.targetOffset=start[2]; slot.targetLength=end[2]-start[2]; slot.targetValid=utf8(req.bytes(),slot.targetOffset,slot.targetLength); }
+        if(route.targeted()) { slot.targetOffset=start[2]; slot.targetLength=end[2]-start[2]; slot.targetValid=utf8(req.bytes(),slot.targetOffset,slot.targetLength); }
         slot.async=req.startAsync(); slot.start();
     }
     private static boolean utf8(byte[] b,int offset,int length) {
@@ -125,7 +158,7 @@ public final class ConduitServlet extends HttpServlet {
     private final class Slot extends Task implements Completions, Unit.Callback {
         final Request request; final Jwt jwt; final Query query=new Query(0,false); Query secondary;
         final Query[] one={query}, two=new Query[2]; final Unit unit; final Helpers.Params params=new Helpers.Params(); final byte[] signed=new byte[256];
-        Response response; AsyncContext async; int route,phase,tokenOffset,tokenLength,targetOffset,targetLength; long viewer; boolean targetValid;
+        Response response; AsyncContext async; Route route; int phase,tokenOffset,tokenLength,targetOffset,targetLength; long viewer; boolean targetValid;
         String username,email,password,bio,image,title,description,bodyText; String[] tags; long commentId; int limit,offset;
         Slot(Request request) {
             this.request=request;
@@ -134,8 +167,8 @@ public final class ConduitServlet extends HttpServlet {
             unit=new Unit(this,this,false,false,one);
         }
         void start() {
-            boolean write=route==REGISTER||route==UPDATE||route==FOLLOW||route==UNFOLLOW||route>=CREATE_ARTICLE;
-            query.prepare(STATEMENTS[route],write);
+            boolean write=route.writes();
+            query.prepare(route.stmt,write);
             boolean dual=route==CREATE_ARTICLE||route==FAVORITE||route==UNFAVORITE;
             if(dual) {
                 if(secondary==null) secondary=new Query(0,true);
@@ -157,10 +190,10 @@ public final class ConduitServlet extends HttpServlet {
                 case CREATE_COMMENT -> { target(q.int8(viewer)).text(bodyText); dispatcher.submit(unit); }
                 case DELETE_COMMENT -> { target(q.int8(viewer)).int8(commentId); dispatcher.submit(unit); }
                 case ARTICLE,COMMENTS,PROFILE,FOLLOW,UNFOLLOW -> { target(q.int8(viewer)); dispatcher.submit(unit); }
-                case ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,FEED -> {
-                    q.int8(viewer).int4(limit).int4(offset);
-                    if(route==ARTICLES_TAG || route==ARTICLES_AUTHOR || route==ARTICLES_FAVORITED) q.text(params.bytes(),params.offset(route-ARTICLES_TAG+2),params.length(route-ARTICLES_TAG+2));
-                    dispatcher.submit(unit);
+                case ARTICLES,FEED -> { q.int8(viewer).int4(limit).int4(offset); dispatcher.submit(unit); }
+                case ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED -> {
+                    int p=switch(route) { case ARTICLES_TAG -> 2; case ARTICLES_AUTHOR -> 3; default -> 4; };
+                    q.int8(viewer).int4(limit).int4(offset).text(params.bytes(),params.offset(p),params.length(p)); dispatcher.submit(unit);
                 }
                 default -> throw new AssertionError();
             }
@@ -184,34 +217,47 @@ public final class ConduitServlet extends HttpServlet {
             }
             Unit u=unit; Query q=query;
             if(u.errorMessage!=null) { finishError("23505".equals(u.sqlState)?422:500,"database error"); return; }
-            if(route==TAGS) {
-                response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"tags\":[");
-                for(int i=0;i<q.rowCount();i++){if(i!=0)out.put(','); Helpers.column(out,q,i,0);} Helpers.raw(out,"]}"); async.complete(); return;
+            switch(route) {
+                case TAGS -> {
+                    response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"tags\":[");
+                    for(int i=0;i<q.rowCount();i++){if(i!=0)out.put(','); Helpers.column(out,q,i,0);} Helpers.raw(out,"]}"); async.complete();
+                }
+                case ARTICLES,ARTICLES_TAG,ARTICLES_AUTHOR,ARTICLES_FAVORITED,FEED -> {
+                    response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"articles\":[");
+                    for(int i=0;i<q.rowCount();i++) { if(q.isNull(i,0))continue; if(i>0)out.put(','); Helpers.article(out,q,i,false); }
+                    Helpers.raw(out,"],\"articlesCount\":"); out.number(q.int8At(0,13)); out.put('}'); async.complete();
+                }
+                case LOGIN -> { if(!missing(q,401)) { unit.bcryptPassword=password; unit.bcryptHash=new String(q.bytes(),q.offset(0,5),q.length(0,5),StandardCharsets.UTF_8); phase=1; bcrypt.submit(unit); } }
+                case REGISTER,USER,UPDATE -> { if(!missing(q,401)) writeUser(); }
+                case PROFILE,FOLLOW,UNFOLLOW -> {
+                    if(missing(q,404)) return;
+                    response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"profile\":");
+                    Helpers.profile(out,q,0,0,route==PROFILE?q.boolAt(0,3):route==FOLLOW); out.put('}'); async.complete();
+                }
+                case ARTICLE -> { if(!missing(q,404)) writeArticle(q); }
+                case CREATE_ARTICLE -> { if(!missing(q,401)) writeArticle(q); }
+                case UPDATE_ARTICLE -> { if(missing(q,404)) return; if(q.isNull(0,0)) finishError(403,"forbidden"); else writeArticle(q); }
+                case FAVORITE,UNFAVORITE -> { Query article=u.queries[1]; if(!missing(article,404)) writeArticle(article); }
+                case DELETE_ARTICLE,DELETE_COMMENT -> {
+                    if(missing(q,404)) return;
+                    if(!q.boolAt(0,0)) finishError(403,"forbidden"); else { response.setStatus(204); async.complete(); }
+                }
+                case COMMENTS -> {
+                    if(missing(q,404)) return;
+                    response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"comments\":[");
+                    for(int i=0;i<q.rowCount();i++) { if(q.isNull(i,0))continue; if(i>0)out.put(','); Helpers.comment(out,q,i,q.boolAt(i,7)); }
+                    Helpers.raw(out,"]}"); async.complete();
+                }
+                case CREATE_COMMENT -> {
+                    if(missing(q,404)) return;
+                    response.setStatus(201); response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"comment\":"); Helpers.comment(out,q,0,false); out.put('}'); async.complete();
+                }
             }
-            if(route>=ARTICLES && route<=FEED) {
-                response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"articles\":[");
-                for(int i=0;i<q.rowCount();i++) { if(q.isNull(i,0))continue; if(i>0)out.put(','); Helpers.article(out,q,i,false); }
-                Helpers.raw(out,"],\"articlesCount\":"); out.number(q.int8At(0,13)); out.put('}'); async.complete(); return;
-            }
-            if(route==FAVORITE || route==UNFAVORITE) q=u.queries[1];
-            if(route>=UPDATE_ARTICLE && q.rowCount()==0) { finishError(404,"not found"); return; }
-            if(route==UPDATE_ARTICLE && q.isNull(0,0) || (route==DELETE_ARTICLE || route==DELETE_COMMENT) && !q.boolAt(0,0)) { finishError(403,"forbidden"); return; }
-            if(route==DELETE_ARTICLE || route==DELETE_COMMENT) { response.setStatus(204); async.complete(); return; }
-            if(route==CREATE_COMMENT) { response.setStatus(201); response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"comment\":"); Helpers.comment(out,q,0,false); out.put('}'); async.complete(); return; }
-            if(q.rowCount()==0) { finishError(route==PROFILE||route==FOLLOW||route==UNFOLLOW||route==ARTICLE||route==COMMENTS?404:401,"not found"); return; }
-            if(route==ARTICLE || route==CREATE_ARTICLE || route==UPDATE_ARTICLE || route==FAVORITE || route==UNFAVORITE) {
-                if(route==CREATE_ARTICLE) response.setStatus(201);
-                response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"article\":"); Helpers.article(out,q,0,true); out.put('}'); async.complete(); return;
-            }
-            if(route==COMMENTS) {
-                response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"comments\":[");
-                for(int i=0;i<q.rowCount();i++) { if(q.isNull(i,0))continue; if(i>0)out.put(','); Helpers.comment(out,q,i,q.boolAt(i,7)); }
-                Helpers.raw(out,"]}"); async.complete(); return;
-            }
-            if(route==LOGIN) { unit.bcryptPassword=password; unit.bcryptHash=new String(q.bytes(),q.offset(0,5),q.length(0,5),StandardCharsets.UTF_8); phase=1; bcrypt.submit(unit); return; }
-            if(route==REGISTER || route==USER || route==UPDATE) { writeUser(); return; }
-            response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"profile\":");
-            Helpers.profile(out,q,0,0,route==PROFILE?q.boolAt(0,3):route==FOLLOW); out.put('}'); async.complete();
+        }
+        boolean missing(Query q,int status) { if(q.rowCount()!=0)return false; finishError(status,"not found"); return true; }
+        void writeArticle(Query q) {
+            if(route==CREATE_ARTICLE) response.setStatus(201);
+            response.setContentType("application/json"); JsonWriter out=response.jsonOut(); Helpers.raw(out,"{\"article\":"); Helpers.article(out,q,0,true); out.put('}'); async.complete();
         }
         void writeUser() {
             Query q=query; byte[] token=request.bytes(); int at=tokenOffset,len=tokenLength;
