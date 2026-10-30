@@ -4,7 +4,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 
 | # | Users | Submission | PR | Front | req/s | p95 ms | p99 ms | CPU: app / Postgres | Note |
 |--:|--:|---|---|---|--:|--:|--:|---|---|
-| 1 | **130,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#82](https://github.com/arjaythedev/multicore-server-challenge/pull/82) @nickita-khylkouski | direct | 33,335 | 445 | 662 | 23% / 69% |  |
+| 1 | **150,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#82](https://github.com/arjaythedev/multicore-server-challenge/pull/82) @nickita-khylkouski | direct | 38,796 | 425 | 775 | 24% / 70% |  |
 | 2 | **130,000** | [csharp-epoll-aot-gichamba](submissions/csharp-epoll-aot-gichamba) | [#103](https://github.com/arjaythedev/multicore-server-challenge/pull/103) @gichamba | direct | 33,482 | 259 | 610 | 28% / 59% |  |
 | 3 | **130,000** | [kotlin-native-luben93](submissions/kotlin-native-luben93) | [#49](https://github.com/arjaythedev/multicore-server-challenge/pull/49) @luben93 | direct | 33,094 | 449 | 795 | 22% / 76% | Not merged yet: update #121 (b6d3714) scored here, but 89% of logins timed out in the hold (bcrypt capacity); waiting on Arjay |
 | 4 | **130,000** | [rust-epoll-theCatWisel](submissions/rust-epoll-theCatWisel) | [#105](https://github.com/arjaythedev/multicore-server-challenge/pull/105) @theCatWisel | direct | 34,057 | 112 | 236 | 33% / 55% |  |
