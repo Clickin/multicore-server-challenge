@@ -4,12 +4,12 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 
 | # | Users | Submission | PR | Front | req/s | p95 ms | p99 ms | CPU: app / Postgres | Note |
 |--:|--:|---|---|---|--:|--:|--:|---|---|
-| 1 | **190,000** | [zig-iouring-nick-potts](submissions/zig-iouring-nick-potts) | [#117](https://github.com/arjaythedev/multicore-server-challenge/pull/117) @nick-potts | direct | 47,649 | 461 | 746 | 36% / 58% |  |
-| 2 | **170,000** | [rust-epoll-WorriedArrow](submissions/rust-epoll-WorriedArrow) | [#131](https://github.com/arjaythedev/multicore-server-challenge/pull/131) @WorriedArrow | direct | 42,546 | 439 | 767 | 34% / 63% |  |
-| 3 | **150,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#130](https://github.com/arjaythedev/multicore-server-challenge/pull/130) @nickita-khylkouski | direct | 38,796 | 425 | 775 | 24% / 70% |  |
-| 4 | **130,000** | [csharp-epoll-aot-gichamba](submissions/csharp-epoll-aot-gichamba) | [#103](https://github.com/arjaythedev/multicore-server-challenge/pull/103) @gichamba | direct | 33,482 | 259 | 610 | 28% / 59% |  |
-| 5 | **130,000** | [kotlin-native-luben93](submissions/kotlin-native-luben93) | [#121](https://github.com/arjaythedev/multicore-server-challenge/pull/121) @luben93 | direct | 33,857 | 172 | 385 | 27% / 70% |  |
-| 6 | **130,000** | [rust-epoll-theCatWisel](submissions/rust-epoll-theCatWisel) | [#105](https://github.com/arjaythedev/multicore-server-challenge/pull/105) @theCatWisel | direct | 33,233 | 498 | 845 | 28% / 70% |  |
+| 1 | **190,000** | [rust-epoll-theCatWisel](submissions/rust-epoll-theCatWisel) | [#132](https://github.com/arjaythedev/multicore-server-challenge/pull/132) @theCatWisel | direct | 47,140 | 428 | 557 | 35% / 58% |  |
+| 2 | **190,000** | [zig-iouring-nick-potts](submissions/zig-iouring-nick-potts) | [#117](https://github.com/arjaythedev/multicore-server-challenge/pull/117) @nick-potts | direct | 47,649 | 461 | 746 | 36% / 58% |  |
+| 3 | **170,000** | [rust-epoll-WorriedArrow](submissions/rust-epoll-WorriedArrow) | [#131](https://github.com/arjaythedev/multicore-server-challenge/pull/131) @WorriedArrow | direct | 42,546 | 439 | 767 | 34% / 63% |  |
+| 4 | **150,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#130](https://github.com/arjaythedev/multicore-server-challenge/pull/130) @nickita-khylkouski | direct | 38,796 | 425 | 775 | 24% / 70% |  |
+| 5 | **130,000** | [csharp-epoll-aot-gichamba](submissions/csharp-epoll-aot-gichamba) | [#103](https://github.com/arjaythedev/multicore-server-challenge/pull/103) @gichamba | direct | 33,482 | 259 | 610 | 28% / 59% |  |
+| 6 | **130,000** | [kotlin-native-luben93](submissions/kotlin-native-luben93) | [#121](https://github.com/arjaythedev/multicore-server-challenge/pull/121) @luben93 | direct | 33,857 | 172 | 385 | 27% / 70% |  |
 | 7 | **120,000** | [c-iouring-aslahtp](submissions/c-iouring-aslahtp) | [#123](https://github.com/arjaythedev/multicore-server-challenge/pull/123) @aslahtp | direct | 30,222 | 492 | 699 | 23% / 63% |  |
 | 8 | **120,000** | [csharp-epoll-xeonfx](submissions/csharp-epoll-xeonfx) | [#118](https://github.com/arjaythedev/multicore-server-challenge/pull/118) @XeonFX | direct | 30,805 | 339 | 794 | 30% / 64% |  |
 | 9 | **120,000** | [go-epoll-Bparsons0904](submissions/go-epoll-Bparsons0904) | [#95](https://github.com/arjaythedev/multicore-server-challenge/pull/95) @Bparsons0904 | direct | 30,928 | 478 | 650 | 25% / 63% |  |
