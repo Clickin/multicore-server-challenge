@@ -4,7 +4,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 
 | # | Users | Submission | PR | Front | req/s | p95 ms | p99 ms | CPU: app / Postgres | Note |
 |--:|--:|---|---|---|--:|--:|--:|---|---|
-| 1 | **190,000** | [zig-iouring-nick-potts](submissions/zig-iouring-nick-potts) | [#79](https://github.com/arjaythedev/multicore-server-challenge/pull/79) @nick-potts | direct | 47,649 | 461 | 746 | 36% / 58% |  |
+| 1 | **190,000** | [zig-iouring-nick-potts](submissions/zig-iouring-nick-potts) | [#117](https://github.com/arjaythedev/multicore-server-challenge/pull/117) @nick-potts | direct | 47,649 | 461 | 746 | 36% / 58% |  |
 | 2 | **150,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#130](https://github.com/arjaythedev/multicore-server-challenge/pull/130) @nickita-khylkouski | direct | 38,796 | 425 | 775 | 24% / 70% |  |
 | 3 | **130,000** | [csharp-epoll-aot-gichamba](submissions/csharp-epoll-aot-gichamba) | [#103](https://github.com/arjaythedev/multicore-server-challenge/pull/103) @gichamba | direct | 33,482 | 259 | 610 | 28% / 59% |  |
 | 4 | **130,000** | [kotlin-native-luben93](submissions/kotlin-native-luben93) | [#121](https://github.com/arjaythedev/multicore-server-challenge/pull/121) @luben93 | direct | 33,857 | 172 | 385 | 27% / 70% |  |
