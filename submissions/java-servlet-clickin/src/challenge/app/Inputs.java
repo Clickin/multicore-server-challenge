@@ -9,7 +9,8 @@ import java.util.Map;
 import challenge.Json;
 import challenge.Json.Malformed;
 import challenge.Jwt;
-import challenge.servlet.Request;
+import challenge.servlet.Direct;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * Request input: bearer token, JSON body fields and the article list query
@@ -18,13 +19,13 @@ import challenge.servlet.Request;
 public final class Inputs {
     private Inputs() {}
 
-    public static long viewer(Request req, Jwt jwt, boolean required) {
+    public static long viewer(Direct req, Jwt jwt, boolean required) {
         int at = req.authorizationOffset();
         int len = req.authorizationLength();
         if (at < 0) {
             return required ? -1 : 0;
         }
-        if (req.multipleAuthorization) {
+        if (req.multipleAuthorization()) {
             return -1;
         }
         byte[] b = req.bytes();
@@ -69,7 +70,7 @@ public final class Inputs {
         }
     }
 
-    public static Body body(Request req, String wrapper) throws Invalid {
+    public static Body body(Direct req, String wrapper) throws Invalid {
         byte[] bytes = req.bytes();
         int start = req.bodyOffset();
         int end = start + req.bodyLength();
@@ -223,7 +224,7 @@ public final class Inputs {
         return result;
     }
 
-    public static int page(Request req, String name, int fallback,
+    public static int page(HttpServletRequest req, String name, int fallback,
                            int min, int max)
             throws Invalid {
         String s;
@@ -271,7 +272,7 @@ public final class Inputs {
             return lengths[index];
         }
 
-        public void parse(Request request) throws Invalid {
+        public void parse(Direct request) throws Invalid {
             if (data.length > 65536) {
                 data = new byte[256];
             }

@@ -3,21 +3,19 @@ package challenge.app;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 
 import challenge.JsonWriter;
-import challenge.Jwt;
 import challenge.app.Conduit.Services;
 import challenge.app.Inputs.Params;
-import challenge.http.Task;
 import challenge.pg.Completions;
 import challenge.pg.Query;
 import challenge.pg.Stmt;
 import challenge.pg.Unit;
 import challenge.pg.Unit.Callback;
-import challenge.servlet.Request;
-import challenge.servlet.Response;
+import challenge.servlet.Direct;
 import jakarta.servlet.AsyncContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import static challenge.app.Op.ARTICLE;
 import static challenge.app.Op.ARTICLES;
@@ -47,10 +45,9 @@ import static challenge.app.Op.USER;
  * servlet fills the inputs, {@link #start} binds and submits them, and {@link
  * #run} renders the result on the loop thread and completes the async request.
  */
-final class Call extends Task implements Completions, Callback {
-    final Request request;
+final class Call implements Runnable, Completions, Callback {
+    final Direct request;
     final Services services;
-    final Jwt jwt;
     final Query query = new Query(0, false);
     Query secondary;
     final Query[] one = {query};
@@ -58,7 +55,8 @@ final class Call extends Task implements Completions, Callback {
     final Unit unit;
     final Params params = new Params();
     final byte[] signed = new byte[256];
-    Response response;
+    HttpServletRequest httpRequest;
+    HttpServletResponse response;
     AsyncContext async;
     Op op;
     int phase;
@@ -81,29 +79,26 @@ final class Call extends Task implements Completions, Callback {
     int limit;
     int offset;
 
-    private Call(Request request, Services services) {
+    private Call(Direct request, Services services) {
         this.request = request;
         this.services = services;
-        try {
-            jwt = request.loop() == null ? new Jwt(services.secret()) : request.loop().jwt(services.secret());
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException(e);
-        }
         unit = new Unit(this, this, false, false, one);
     }
 
     /** The exchange's pooled call, created on first use. */
-    static Call of(Request req, Services services) {
-        Call call = (Call) req.applicationSlot;
+    static Call of(Direct req, Services services) {
+        Call call = (Call) req.slot();
         if (call == null) {
-            req.applicationSlot = call = new Call(req, services);
+            call = new Call(req, services);
+            req.slot(call);
         }
         return call;
     }
 
-    void reset(Op op, Request req, Response response,
-               long viewer) {
+    void reset(Op op, HttpServletRequest httpRequest, Direct req,
+               HttpServletResponse response, long viewer) {
         this.op = op;
+        this.httpRequest = httpRequest;
         this.response = response;
         this.viewer = viewer;
         username = email = password = bio = image = title = description = bodyText = null;
@@ -114,14 +109,14 @@ final class Call extends Task implements Completions, Callback {
         tokenOffset = req.authorizationOffset() < 0 ? 0 : req.authorizationOffset() + 6;
         tokenLength = req.authorizationOffset() < 0 ? 0 : req.authorizationLength() - 6;
         if (op.targeted) {
-            targetOffset = req.segmentStarts[2];
-            targetLength = req.segmentEnds[2] - req.segmentStarts[2];
+            targetOffset = req.segmentStart(2);
+            targetLength = req.segmentEnd(2) - req.segmentStart(2);
             targetValid = utf8(req.bytes(), targetOffset, targetLength);
         }
     }
 
     void start() {
-        async = request.startAsync();
+        async = httpRequest.startAsync();
         boolean write = op.writes;
         query.prepare(op.stmt, write);
         boolean dual = op == CREATE_ARTICLE || op == FAVORITE || op == UNFAVORITE;
@@ -237,8 +232,9 @@ final class Call extends Task implements Completions, Callback {
         services.dispatcher().submit(unit);
     }
 
+    /** From the database or bcrypt thread: run the rest on the request's loop. */
     public void post(Unit ignored) {
-        request.loop().post(this);
+        async.start(this);
     }
 
     public void done(Unit ignored) {
@@ -246,7 +242,6 @@ final class Call extends Task implements Completions, Callback {
     }
 
     public void run() {
-        request.loop().assertLoopThread();
         if (phase == 1) {
             if (unit.errorMessage != null) {
                 fail(500, "password error");
@@ -370,7 +365,7 @@ final class Call extends Task implements Completions, Callback {
 
     private JsonWriter json() {
         response.setContentType("application/json");
-        return response.jsonOut();
+        return request.output();
     }
 
     boolean missing(Query q, int status) {
@@ -399,7 +394,7 @@ final class Call extends Task implements Completions, Callback {
         int len = tokenLength;
         if (op == REGISTER || op == LOGIN) {
             at = 0;
-            len = jwt.sign(q.int8At(0, 0), System.currentTimeMillis() / 1000, signed, 0);
+            len = request.local(services.jwt()).sign(q.int8At(0, 0), System.currentTimeMillis() / 1000, signed, 0);
             token = signed;
         }
         if (op == REGISTER) {

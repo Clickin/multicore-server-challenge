@@ -5,7 +5,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Objects;
@@ -13,9 +12,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import challenge.JsonWriter;
-import challenge.Jwt;
 import challenge.Sys;
 import challenge.servlet.Container;
+import challenge.servlet.Direct.Locals;
 import challenge.servlet.Request;
 import challenge.servlet.Response;
 
@@ -45,7 +44,7 @@ public final class Loop implements Runnable {
     private final AtomicReference<Task> tasks = new AtomicReference<>();
     private final AtomicBoolean signalled = new AtomicBoolean();
     private Thread thread;
-    private Jwt jwt;
+    private final Locals locals = new Locals();
 
     /**
      * Peer or local address of a connection socket; loop thread only (uses the
@@ -56,15 +55,12 @@ public final class Loop implements Runnable {
         return sys.address(fd, peer);
     }
 
-    public Jwt jwt(String secret) {
-        if (jwt == null) {
-            try {
-                jwt = new Jwt(secret);
-            } catch (GeneralSecurityException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        return jwt;
+    /**
+     * Per-loop values for {@link challenge.servlet.Direct#local}; loop thread
+     * only.
+     */
+    public Locals locals() {
+        return locals;
     }
 
     static final class Conn {

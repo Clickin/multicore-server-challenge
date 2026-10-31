@@ -6,8 +6,7 @@ import java.util.Arrays;
 import challenge.WordTable;
 import challenge.app.Conduit.Services;
 import challenge.app.Op.Auth;
-import challenge.servlet.Request;
-import challenge.servlet.Response;
+import challenge.servlet.Direct;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,7 +38,7 @@ abstract class ApiServlet extends HttpServlet {
      * Reads the op's inputs into {@code call}, then calls {@link Call#start};
      * or sends an error response.
      */
-    abstract void handle(Op op, Request req, Call call,
+    abstract void handle(Op op, Direct req, Call call,
                          HttpServletResponse res)
             throws IOException;
 
@@ -89,7 +88,7 @@ abstract class ApiServlet extends HttpServlet {
     }
 
     /** The op for the request's method and path, or null; for tests. */
-    Op op(Request req) {
+    Op op(HttpServletRequest req) {
         Ops ops = switch (req.getMethod()) {
             case "GET", "HEAD" -> get;
             case "POST" -> post;
@@ -97,7 +96,7 @@ abstract class ApiServlet extends HttpServlet {
             case "DELETE" -> delete;
             default -> null;
         };
-        return ops == null ? null : ops.find(req);
+        return ops == null ? null : ops.find(Direct.of(req));
     }
 
     /** True when the method has a table; for tests. */
@@ -112,7 +111,7 @@ abstract class ApiServlet extends HttpServlet {
     }
 
     private void run(Ops ops, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        Request req = Request.of(request);
+        Direct req = Direct.of(request);
         Op op = ops.find(req);
         if (op == null) {
             response.sendError(404, "not found");
@@ -121,13 +120,13 @@ abstract class ApiServlet extends HttpServlet {
         Call call = Call.of(req, services);
         long viewer = 0;
         if (op.auth != Auth.NONE) {
-            viewer = Inputs.viewer(req, call.jwt, op.auth == Auth.REQUIRED);
+            viewer = Inputs.viewer(req, req.local(services.jwt()), op.auth == Auth.REQUIRED);
             if (viewer < 0) {
                 response.sendError(401, "unauthorized");
                 return;
             }
         }
-        call.reset(op, req, Response.of(response), viewer);
+        call.reset(op, request, req, response, viewer);
         handle(op, req, call, response);
     }
 
@@ -169,10 +168,11 @@ abstract class ApiServlet extends HttpServlet {
             return this;
         }
 
-        Op find(Request r) {
-            int c = Math.max(0, Math.min(r.segmentCount, COUNTS - 1));
+        Op find(Direct r) {
+            int c = Math.max(0,
+                    Math.min(r.segmentCount(), COUNTS - 1));
             int s = KEY_SEGMENT[c];
-            return table[c * (list.length + 1) + words.id(r.bytes(), r.segmentStarts[s], r.segmentEnds[s])];
+            return table[c * (list.length + 1) + words.id(r.bytes(), r.segmentStart(s), r.segmentEnd(s))];
         }
     }
 }

@@ -2,15 +2,17 @@ package challenge.app;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 
 import challenge.BcryptPool;
+import challenge.Jwt;
 import challenge.app.ApiServlet.Ops;
 import challenge.app.Inputs.Body;
 import challenge.app.Inputs.Invalid;
 import challenge.pg.PgDispatcher;
 import challenge.servlet.Container;
-import challenge.servlet.Request;
-import challenge.servlet.Response;
+import challenge.servlet.Direct;
+import challenge.servlet.Direct.Local;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
@@ -50,10 +52,22 @@ public final class Conduit {
     private Conduit() {}
 
     /**
-     * What the servlets share: the Postgres dispatcher, the bcrypt pool and the
-     * JWT secret.
+     * What the servlets share: the Postgres dispatcher, the bcrypt pool, the
+     * JWT secret, and the per-loop {@link Jwt} (its Mac and buffers are not
+     * thread-safe, and too big to keep per request).
      */
-    public record Services(PgDispatcher dispatcher, BcryptPool bcrypt, String secret) {}
+    public record Services(PgDispatcher dispatcher, BcryptPool bcrypt, String secret,
+                           Local<Jwt> jwt) {
+        public Services(PgDispatcher dispatcher, BcryptPool bcrypt, String secret) {
+            this(dispatcher, bcrypt, secret, new Local<>(() -> {
+                try {
+                    return new Jwt(secret);
+                } catch (GeneralSecurityException e) {
+                    throw new IllegalStateException(e);
+                }
+            }));
+        }
+    }
 
     public static Container container(Services services) throws ServletException {
         Container c = new Container();
@@ -76,7 +90,7 @@ public final class Conduit {
                     null, null, null);
         }
 
-        void handle(Op op, Request req, Call call,
+        void handle(Op op, Direct req, Call call,
                     HttpServletResponse res) {
             call.start();
         }
@@ -97,7 +111,7 @@ public final class Conduit {
                     null);
         }
 
-        void handle(Op op, Request req, Call call,
+        void handle(Op op, Direct req, Call call,
                     HttpServletResponse res)
                 throws IOException {
             if (op != USER) {
@@ -132,7 +146,7 @@ public final class Conduit {
                     new Ops("follow").on(4, "follow", UNFOLLOW));
         }
 
-        void handle(Op op, Request req, Call call,
+        void handle(Op op, Direct req, Call call,
                     HttpServletResponse res) {
             call.start();
         }
@@ -164,7 +178,7 @@ public final class Conduit {
                             .on(5, "comments", DELETE_COMMENT));
         }
 
-        void handle(Op op, Request req, Call call,
+        void handle(Op op, Direct req, Call call,
                     HttpServletResponse res)
                 throws IOException {
             if (op == ARTICLES || op == FEED) {
@@ -204,7 +218,8 @@ public final class Conduit {
             }
             if (op == DELETE_COMMENT) {
                 try {
-                    call.commentId = Long.parseLong(new String(req.bytes(), req.segmentStarts[4], req.segmentEnds[4] - req.segmentStarts[4], StandardCharsets.UTF_8));
+                    call.commentId = Long.parseLong(new String(req.bytes(), req.segmentStart(4), req.segmentEnd(4) - req.segmentStart(4),
+                            StandardCharsets.UTF_8));
                 } catch (NumberFormatException e) {
                     res.sendError(404, "not found");
                     return;
@@ -252,7 +267,7 @@ public final class Conduit {
             Object message = req.getAttribute(RequestDispatcher.ERROR_MESSAGE);
             res.setContentType("application/json");
             Views.errors(
-                    Response.of(res).jsonOut(),
+                    Direct.of(req).output(),
                     message != null
                             ? message.toString()
                             : res.getStatus() == 404 ? "not found" : "error");

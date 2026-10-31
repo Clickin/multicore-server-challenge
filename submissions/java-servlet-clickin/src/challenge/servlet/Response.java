@@ -22,8 +22,6 @@ import challenge.JsonWriter;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.ServletResponse;
-import jakarta.servlet.ServletResponseWrapper;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
@@ -86,17 +84,6 @@ public final class Response implements HttpServletResponse {
     public void init(Request request, Container container) {
         this.request = request;
         this.container = container;
-    }
-
-    /**
-     * The unwrapped container response behind any {@link
-     * ServletResponseWrapper}s.
-     */
-    public static Response of(ServletResponse response) {
-        while (response instanceof ServletResponseWrapper w) {
-            response = w.getResponse();
-        }
-        return (Response) response;
     }
 
     Container container() {

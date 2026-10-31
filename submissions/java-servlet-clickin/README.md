@@ -35,7 +35,12 @@ against the Servlet API: standard `HttpServlet`s, in async mode, on a container 
   threads, no `ThreadLocal`s and no hand-offs to worker threads are needed.
 - **No allocation in the steady state.** Request, response, `AsyncContext` and the app's per-request state are pooled
   per loop and recycled. Header fields, path and query are offsets into the read buffer; the standard getters
-  (`getHeader`, `getParameter`, ...) still work but allocate only if called, and the hot paths don't call them. An idle
+  (`getHeader`, `getParameter`, ...) still work but allocate only if called, and the hot paths don't call them.
+  Instead they use `Direct`, the one interface the container adds to the Servlet API (`Direct.of(request)`): the read
+  buffer with path, query, body, `Authorization` and path-segment offsets, the response body buffer, an object slot
+  pooled with the request, and per-loop values (`Direct.Local`, used for the not-thread-safe `Jwt`). Everything else
+  the app does goes through the standard API, including `AsyncContext.start` to come back to the loop from the
+  database and bcrypt threads. An idle
   connection is an fd and a small object: the read buffer is shared per loop, and a connection gets its own only
   while it holds a partial request or unsent output. Measured with JFR under load: a few hundred bytes per request at
   most, i.e. a young GC every minute or so with a 2 GB heap (ParallelGC, pre-touched).
@@ -119,7 +124,10 @@ shared vCPU, the account's limit) were at their edge too, so the strict reading 
 - `test/sql/batch_equiv.sql` and `test/sql/feed_check.sql`: the batched statements return exactly the rows of the
   per-request ones, and the feed shortcut the counts of the reference SQL (2,000 viewers).
 - `test/run-unit.sh`: wire-protocol parsing (fragmented messages, errors, group retry), JWT edge cases, bcrypt
-  vectors across lanes, JSON escaping, timestamp formatting, slugify.
+  vectors across lanes, JSON escaping, timestamp formatting, slugify, servlet mapping and method dispatch, the
+  standard request/response API, per-servlet op tables.
+- `test/http-smoke.sh`: pipelining, chunked bodies, HEAD without a body, 405, `AsyncContext.start` and `dispatch()`,
+  peer address.
 
 ## Tuning knobs (all optional; defaults are what was measured)
 

@@ -27,8 +27,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import challenge.JsonWriter;
 import challenge.WordTable;
 import challenge.http.Loop;
+import challenge.servlet.Direct.Local;
+import challenge.servlet.Direct.Locals;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ReadListener;
@@ -50,7 +53,7 @@ import jakarta.servlet.http.MappingMatch;
 import jakarta.servlet.http.Part;
 import jakarta.servlet.http.PushBuilder;
 
-public final class Request implements HttpServletRequest {
+public final class Request implements HttpServletRequest, Direct {
     /**
      * Method names returned by getMethod(), indexed by {@link #method}; 0 is
      * any other token.
@@ -81,18 +84,19 @@ public final class Request implements HttpServletRequest {
     private Async async;
     private boolean started;
     boolean redispatch;
-    public final int[] segmentStarts = new int[6];
-    public final int[] segmentEnds = new int[6];
+    final int[] segmentStarts = new int[6];
+    final int[] segmentEnds = new int[6];
 
     /**
      * Path segment count from the container's split, or -1 for a path the
      * container will not map.
      */
-    public int segmentCount;
+    int segmentCount;
 
     int method;
     int servletPathEnd;
-    public Object applicationSlot;
+    private Object slot;
+    private Locals locals;
 
     /** Socket of the connection this request came on; set by the loop. */
     public int fd = -1;
@@ -216,11 +220,50 @@ public final class Request implements HttpServletRequest {
         headerOffsets[headerCount++] = valueEnd;
     }
 
+    public boolean multipleAuthorization() {
+        return multipleAuthorization;
+    }
+
+    public int segmentCount() {
+        return segmentCount;
+    }
+
+    public int segmentStart(int index) {
+        return segmentStarts[index];
+    }
+
+    public int segmentEnd(int index) {
+        return segmentEnds[index];
+    }
+
+    public Object slot() {
+        return slot;
+    }
+
+    public void slot(Object value) {
+        slot = value;
+    }
+
+    /** The loop's values; a request without a loop (unit tests) keeps its own. */
+    public <T> T local(Local<T> key) {
+        if (loop != null) {
+            return loop.locals().get(key);
+        }
+        if (locals == null) {
+            locals = new Locals();
+        }
+        return locals.get(key);
+    }
+
+    public JsonWriter output() {
+        return response.jsonOut();
+    }
+
     Response response() {
         return response;
     }
 
-    public Loop loop() {
+    Loop loop() {
         return loop;
     }
 
@@ -261,7 +304,7 @@ public final class Request implements HttpServletRequest {
     }
 
     /** The unwrapped container request behind any {@link ServletRequestWrapper}s. */
-    public static Request of(ServletRequest request) {
+    static Request of(ServletRequest request) {
         while (request instanceof ServletRequestWrapper w) {
             request = w.getRequest();
         }
