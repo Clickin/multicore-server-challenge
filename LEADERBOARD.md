@@ -4,7 +4,7 @@ Every submission on the same box: **8 dedicated vCPU / 16 GB**, Postgres 18 on t
 
 | # | Users | Submission | PR | Front | req/s | p95 ms | p99 ms | CPU: app / Postgres | Note |
 |--:|--:|---|---|---|--:|--:|--:|---|---|
-| 1 | **190,000** | [rust-epoll-theCatWisel](submissions/rust-epoll-theCatWisel) | [#132](https://github.com/arjaythedev/multicore-server-challenge/pull/132) @theCatWisel | direct | 47,140 | 428 | 557 | 35% / 58% |  |
+| 1 | **190,000** | [rust-epoll-theCatWisel](submissions/rust-epoll-theCatWisel) | [#132](https://github.com/arjaythedev/multicore-server-challenge/pull/132) @theCatWisel | direct | 47,157 | 430 | 599 | 34% / 58% |  |
 | 2 | **190,000** | [zig-iouring-nick-potts](submissions/zig-iouring-nick-potts) | [#117](https://github.com/arjaythedev/multicore-server-challenge/pull/117) @nick-potts | direct | 47,649 | 461 | 746 | 36% / 58% |  |
 | 3 | **180,000** | [rust-epoll-WorriedArrow](submissions/rust-epoll-WorriedArrow) | [#139](https://github.com/arjaythedev/multicore-server-challenge/pull/139) @WorriedArrow | direct | 44,659 | 492 | 803 | 35% / 60% |  |
 | 4 | **150,000** | [asm-epoll-nickita-khylkouski](submissions/asm-epoll-nickita-khylkouski) | [#130](https://github.com/arjaythedev/multicore-server-challenge/pull/130) @nickita-khylkouski | direct | 38,796 | 425 | 775 | 24% / 70% |  |
