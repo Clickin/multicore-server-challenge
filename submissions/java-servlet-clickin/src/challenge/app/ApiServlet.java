@@ -6,6 +6,7 @@ import java.util.Arrays;
 import challenge.WordTable;
 import challenge.app.Conduit.Services;
 import challenge.app.Op.Auth;
+import challenge.pg.Query;
 import challenge.servlet.Direct;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -15,7 +16,8 @@ import jakarta.servlet.http.HttpServletResponse;
 /**
  * Base for the API servlets: picks the {@link Op} for the request from a
  * per-method {@link Ops} table, authenticates, and hands the servlet a pooled
- * {@link Call} to fill from the request before it starts the database work.
+ * {@link Call}. The servlet binds and submits the op's work in {@link #handle}
+ * and writes the response from the result in {@link #finish}.
  */
 abstract class ApiServlet extends HttpServlet {
     final Services services;
@@ -35,12 +37,19 @@ abstract class ApiServlet extends HttpServlet {
     }
 
     /**
-     * Reads the op's inputs into {@code call}, then calls {@link Call#start};
-     * or sends an error response.
+     * Reads the op's inputs, binds them to the query from {@link Call#start} and
+     * submits; or sends an error response.
      */
     abstract void handle(Op op, Direct req, Call call,
                          HttpServletResponse res)
             throws IOException;
+
+    /**
+     * On the request's loop once the submitted work succeeded: submits the next
+     * step, or writes the response and completes the async request. {@code q} is
+     * the op's own query.
+     */
+    abstract void finish(Op op, Call call, Query q);
 
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         if (get == null) {
@@ -126,7 +135,7 @@ abstract class ApiServlet extends HttpServlet {
                 return;
             }
         }
-        call.reset(op, request, req, response, viewer);
+        call.reset(this, op, request, req, response, viewer);
         handle(op, req, call, response);
     }
 
