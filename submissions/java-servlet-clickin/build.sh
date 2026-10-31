@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
-JDK="${JAVA_HOME:-/opt/jdk}"
+# install.sh's JDK wins over any JAVA_HOME already set (CI runners set their own)
+JDK=/opt/jdk; [[ -x "$JDK/bin/javac" ]] || JDK="${JAVA_HOME:-}"
 if [[ -x "$JDK/bin/javac" && -x "$JDK/bin/jar" ]]; then JAVAC="$JDK/bin/javac"; JAR="$JDK/bin/jar"; else JAVAC=javac; JAR=jar; fi
 mkdir -p lib build/classes
 JAR_PATH=lib/jakarta.servlet-api-6.1.0.jar
