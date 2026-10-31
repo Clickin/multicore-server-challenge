@@ -43,7 +43,8 @@ against the Servlet API: standard `HttpServlet`s, in async mode, on a container 
   database and bcrypt threads. An idle
   connection is an fd and a small object: the read buffer is shared per loop, and a connection gets its own only
   while it holds a partial request or unsent output. Measured with JFR under load: a few hundred bytes per request at
-  most, i.e. a young GC every minute or so with a 2 GB heap (ParallelGC, pre-touched).
+  most; at ~25k req/s on the Hetzner box that is a short young GC every 6-8 s with a 2 GB heap (ParallelGC,
+  pre-touched).
 - **Servlet mapping without a scan.** `Container.addServlet` takes exact, `/prefix/*` and default (`/`) patterns. A
   lookup hashes the path's first N segments once per registered depth, deepest first, into a table whose multiplier
   is searched at registration so patterns never collide, then checks the bytes: the cost does not grow with the number
@@ -99,22 +100,29 @@ per thread through FFM; `Thread.setPriority` is a no-op on Linux), which wait up
 
 ## Results
 
-On Hetzner **ccx33** (8 dedicated AMD EPYC vCPU; Postgres configured by `box/pg-conf.sh` as for 16 GB), full seed,
-the repo's `loadgen search` from two separate load boxes over a private network:
+On Hetzner **ccx33** (8 dedicated AMD EPYC-Milan vCPU, Postgres 18; configured by `box/pg-conf.sh` as for 16 GB),
+full seed, the repo's `loadgen search` from two separate load boxes (one cx43 and one cpx42, 8 shared vCPU each, the
+account's limit) over a private network. Each user count is a fresh run: switch, 3-minute warmup, 2-minute probe, and the
+5-minute hold if the probe passed.
 
-| Phase | Users | req/s | p50 | p95 | p99 | Errors | Box CPU: app / Postgres |
+| Phase | Users | req/s | p50 | p95 | p99 | Errors | Box CPU (app / Postgres) |
 |---|--:|--:|--:|--:|--:|--:|---|
-| probe | 70,000 | 18,463 | 23 ms | 40 ms | 49 ms | 0% | 26% / 37% |
-| probe | 85,000 | 22,363 | 29 ms | 53 ms | 65 ms | 0% | 31% / 43% |
-| probe | 95,000 | 24,926 | 39 ms | 76 ms | 102 ms | 0% | 34% / 49% |
-| 5-minute hold | 95,000 | 24,853 | 45 ms | 97 ms | 124 ms | 0% | 36% / 55% |
-| probe | 105,000 | 27,354 | 64 ms | 139 ms | 188 ms | 0% | 36% / 55% |
-| **5-minute hold** | **105,000** | **27,235** | **69 ms** | **159 ms** | **234 ms** | **0%** | **37% / 58%** |
+| probe | 70,000 | 18,401 | 27 ms | 49 ms | 60 ms | 0% | 74% (29% / 42%) |
+| probe | 90,000 | 23,511 | 50 ms | 119 ms | 153 ms | 0% | 94% (37% / 55%) |
+| 5-minute hold | 90,000 | 23,456 | 58 ms | 133 ms | 178 ms | 0% | 96% (38% / 57%) |
+| probe | 95,000 | 24,726 | 68 ms | 167 ms | 400 ms | 0% | 97% (39% / 57%) |
+| **5-minute hold** | **95,000** | **24,627** | **80 ms** | **182 ms** | **243 ms** | **0%** | **98% (39% / 58%)** |
+| probe | 100,000 | 25,164 | 134 ms | 381 ms | 1,038 ms | 0% | 99% (40% / 57%) — fail (p99) |
+| probe | 105,000 | 25,742 | 230 ms | 465 ms | 1,354 ms | 0.02% | 98% (42% / 55%) — fail |
 
-The 105,000 hold passed with 0 errors and the box at ~96% CPU, so this is close to where the box itself runs out.
-The loadgen marked that hold "LG-limited" (one load box's sampler tick was 3.7 s late once): the load boxes (16
-shared vCPU, the account's limit) were at their edge too, so the strict reading is a clean 95,000 hold and a
-105,000 hold that passed with load-box warnings. This is not the official box, so compare with the leaderboard loosely.
+The score is the **95,000-user hold**: 0 errors, and the load boxes were not the limit (CPU ~25%, no sampler lag).
+From there the box itself is out of CPU, Postgres taking about 60% of it; throughput stops growing at ~25k req/s
+and queueing pushes p99 past 1 s by 100,000 users. The loadgen also flagged the 100k and 105k probes "LG-limited"
+(one load box's sampler tick was ~3 s late), so those two are not clean server failures, but the box CPU says the
+same thing. The commit before the servlet restructure (`c8a314b`), run on the same boxes at 105,000, gave 25,499
+req/s and p95 530 ms, i.e. no regression from it. An earlier run with two cx43 load boxes held 105,000 with
+load-box warnings; this run could not reproduce that, so the numbers above replace it. This is not the official box,
+so compare with the leaderboard loosely.
 
 ## Correctness checks beyond the suite
 
