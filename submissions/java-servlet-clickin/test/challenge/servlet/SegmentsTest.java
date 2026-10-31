@@ -1,10 +1,8 @@
-package challenge.app;
+package challenge.servlet;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.SplittableRandom;
-
-import challenge.servlet.Request;
 
 public final class SegmentsTest {
     // The previous byte-at-a-time splitter, kept as the reference.
@@ -53,7 +51,7 @@ public final class SegmentsTest {
             start[k] = random.nextInt();
             end[k] = random.nextInt();
         }
-        int actual = ConduitServlet.segments(r, start, end);
+        int actual = Container.segments(r, start, end);
         if (actual != expected) {
             throw new AssertionError(path + ": expected " + expected + ", got " + actual);
         }
@@ -100,6 +98,6 @@ public final class SegmentsTest {
             }
             check(path.toString(), random);
         }
-        System.out.println("challenge.app.SegmentsTest passed");
+        System.out.println("challenge.servlet.SegmentsTest passed");
     }
 }

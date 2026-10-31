@@ -2,21 +2,39 @@ package challenge.servlet;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import challenge.WordTable;
 import challenge.http.Loop;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletRequestWrapper;
 import jakarta.servlet.ServletResponse;
 
 public final class Request extends RequestAdapter {
+    /**
+     * Method names returned by getMethod(), indexed by {@link #method}; 0 is
+     * any other token.
+     */
+    static final String[] METHOD_NAMES = {null, "GET", "HEAD", "POST", "PUT", "DELETE",
+            "OPTIONS", "TRACE", "PATCH", "CONNECT"};
+
+    static final WordTable METHODS = new WordTable(Arrays.copyOfRange(METHOD_NAMES, 1, METHOD_NAMES.length));
+    static final int HEAD = 2;
     public byte[] data;
     public int pathStart;
     public int pathEnd;
@@ -39,6 +57,15 @@ public final class Request extends RequestAdapter {
     private boolean started;
     public final int[] segmentStarts = new int[6];
     public final int[] segmentEnds = new int[6];
+
+    /**
+     * Path segment count from the container's split, or -1 for a path the
+     * container will not map.
+     */
+    public int segmentCount;
+
+    int method;
+    int servletPathEnd;
     public Object applicationSlot;
 
     public Request(Loop loop) {
@@ -111,8 +138,86 @@ public final class Request extends RequestAdapter {
         return bodyLength;
     }
 
+    /** The unwrapped container request behind any {@link ServletRequestWrapper}s. */
+    public static Request of(ServletRequest request) {
+        while (request instanceof ServletRequestWrapper w) {
+            request = w.getRequest();
+        }
+        return (Request) request;
+    }
+
+    public boolean isHead() {
+        return method == HEAD;
+    }
+
     public String getMethod() {
-        return new String(data, 0, pathStart - 1, StandardCharsets.ISO_8859_1);
+        String name = METHOD_NAMES[method];
+        return name != null ? name : new String(data, 0, pathStart - 1, StandardCharsets.ISO_8859_1);
+    }
+
+    public String getProtocol() {
+        return "HTTP/1.1";
+    }
+
+    public String getScheme() {
+        return "http";
+    }
+
+    public String getContextPath() {
+        return "";
+    }
+
+    public String getServletPath() {
+        return new String(data, pathStart, servletPathEnd - pathStart, StandardCharsets.UTF_8);
+    }
+
+    public String getPathInfo() {
+        return servletPathEnd == pathEnd ? null : new String(data, servletPathEnd, pathEnd - servletPathEnd, StandardCharsets.UTF_8);
+    }
+
+    public Enumeration<String> getHeaders(String name) {
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < headerCount; i += 4) {
+            if (nameIs(i, name)) {
+                values.add(new String(data, headerOffsets[i + 2], headerOffsets[i + 3] - headerOffsets[i + 2], StandardCharsets.ISO_8859_1));
+            }
+        }
+        return Collections.enumeration(values);
+    }
+
+    public Enumeration<String> getHeaderNames() {
+        Set<String> names = new LinkedHashSet<>();
+        for (int i = 0; i < headerCount; i += 4) {
+            names.add(new String(data, headerOffsets[i], headerOffsets[i + 1] - headerOffsets[i], StandardCharsets.ISO_8859_1));
+        }
+        return Collections.enumeration(names);
+    }
+
+    public long getDateHeader(String name) {
+        String value = getHeader(name);
+        if (value == null) {
+            return -1;
+        }
+        try {
+            return ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME)
+                    .toInstant()
+                    .toEpochMilli();
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private boolean nameIs(int i, String name) {
+        int a = headerOffsets[i];
+        if (headerOffsets[i + 1] - a != name.length()) {
+            return false;
+        }
+        for (int j = 0; j < name.length(); j++) {
+            if (Character.toLowerCase((char) (data[a + j] & 255)) != Character.toLowerCase(name.charAt(j))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public String getRequestURI() {
@@ -126,19 +231,7 @@ public final class Request extends RequestAdapter {
     public String getHeader(String name) {
         String result = null;
         for (int i = 0; i < headerCount; i += 4) {
-            int a = headerOffsets[i];
-            int z = headerOffsets[i + 1];
-            if (z - a != name.length()) {
-                continue;
-            }
-            boolean match = true;
-            for (int j = 0; j < name.length(); j++) {
-                if (Character.toLowerCase((char) (data[a + j] & 255)) != Character.toLowerCase(name.charAt(j))) {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) {
+            if (nameIs(i, name)) {
                 String value = new String(data, headerOffsets[i + 2], headerOffsets[i + 3] - headerOffsets[i + 2], StandardCharsets.ISO_8859_1);
                 result = result == null ? value : result + ", " + value;
             }

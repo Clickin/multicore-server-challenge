@@ -14,9 +14,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import challenge.JsonWriter;
 import challenge.Jwt;
 import challenge.Sys;
+import challenge.servlet.Container;
 import challenge.servlet.Request;
 import challenge.servlet.Response;
-import jakarta.servlet.http.HttpServlet;
 
 /**
  * Level-triggered epoll. Each loop owns its listener, sockets and request pool.
@@ -33,7 +33,7 @@ public final class Loop implements Runnable {
     private final int ep;
     private final int listener;
     private final int wake;
-    private final HttpServlet servlet;
+    private final Container container;
     private final MemorySegment io = Arena.global().allocate(65536, 8);
     private final MemorySegment events = Arena.global().allocate((long) Sys.EVENT_SIZE * 1024, 8);
     private Conn[] connections = new Conn[1024];
@@ -124,6 +124,7 @@ public final class Loop implements Runnable {
             this.loop = loop;
             request = new Request(loop);
             request.init(response);
+            response.init(request, loop.container);
         }
 
         public void run() {
@@ -142,8 +143,8 @@ public final class Loop implements Runnable {
         return n;
     }
 
-    public Loop(InetAddress host, int port, HttpServlet servlet) {
-        this.servlet = servlet;
+    public Loop(InetAddress host, int port, Container container) {
+        this.container = container;
         ep = sys.epollCreate();
         listener = sys.listen(host, port, 65535);
         wake = sys.eventfd();
@@ -400,7 +401,7 @@ public final class Loop implements Runnable {
             ex.response.finish = ex;
             c.dispatching = true;
             try {
-                servlet.service(ex.request, ex.response);
+                container.service(ex.request, ex.response);
             } catch (Throwable e) {
                 e.printStackTrace();
                 if (c.busy) {
@@ -456,8 +457,10 @@ public final class Loop implements Runnable {
                 output.raw("Connection: close\r\n");
             }
             output.raw("\r\n");
-            output.raw(r.jsonOut().bytes(), 0,
-                    len);
+            if (!ex.request.isHead()) {
+                output.raw(r.jsonOut().bytes(), 0,
+                        len);
+            }
             int sent = write(c, output.bytes(), 0, output.length());
             if (!c.closed && sent < output.length()) {
                 int remaining = output.length() - sent;

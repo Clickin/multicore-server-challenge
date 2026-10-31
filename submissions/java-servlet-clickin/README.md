@@ -5,8 +5,8 @@ Front: direct
 | | |
 |---|---|
 | Language / runtime | Java 25, Eclipse Temurin JDK `25.0.5+8` (official tarball, sha256-pinned per arch in `install.sh`), used to build and run |
-| Web API | Jakarta Servlet 6.1 (`jakarta.servlet-api` 6.1.0 from Maven Central, sha256-pinned in `build.sh`): the app is one `HttpServlet` using the **async** API (`startAsync` / `AsyncContext.complete`) |
-| Servlet container / HTTP | Our own: HTTP/1.1 on Linux `epoll` through FFM (`java.lang.foreign`), one event loop per thread, implementing the subset of the Servlet API the app uses |
+| Web API | Jakarta Servlet 6.1 (`jakarta.servlet-api` 6.1.0 from Maven Central, sha256-pinned in `build.sh`): the app is one `HttpServlet` per resource (tags, users, profiles, articles), mapped by URL pattern, using the **async** API (`startAsync` / `AsyncContext.complete`) |
+| Servlet container / HTTP | Our own: HTTP/1.1 on Linux `epoll` through FFM (`java.lang.foreign`), one event loop per thread, with servlet mapping (exact, `/prefix/*`, default), `HttpServlet` method dispatch (405, HEAD, OPTIONS) and an error servlet for `sendError` |
 | Postgres driver | Our own v3 wire client: SCRAM-SHA-256, prepared statements, binary rows, pipelining, cross-request batching, group commit |
 | JSON, JWT, bcrypt | Our own: JSON written straight from Postgres's binary rows, allocation-free HS256 verify, bcrypt cost 10 with interleaved lanes |
 | Dependencies | `jakarta.servlet-api` (interfaces only). Build with `javac` only, no Maven/Gradle |
@@ -23,13 +23,13 @@ Linux only (it calls `epoll`, `eventfd` and `setpriority` directly).
 
 Postgres takes most of the box's CPU, so the server's job is (1) to make every request cheaper **for Postgres**
 and (2) to cost as little CPU itself as it can, leaving the rest to Postgres. The application is still written
-against the Servlet API: a standard `HttpServlet`, in async mode, on a container built for this workload.
+against the Servlet API: standard `HttpServlet`s, in async mode, on a container built for this workload.
 
 ## The container
 
 - **Event loops, not threads per request.** `LOOPS` (default cores/2) platform threads, each with its own epoll set and
   its own `SO_REUSEPORT` listener (`TCP_DEFER_ACCEPT`, `TCP_NODELAY`). The loop parses the request and calls
-  `servlet.service(req, res)` on its own thread. A handler that needs the database calls `req.startAsync()`, submits
+  the container on its own thread, which maps the path to a servlet and calls its `service(req, res)`. A handler that needs the database calls `req.startAsync()`, submits
   the query and returns; the result comes back to the same loop (lock-free queue + `eventfd`), the callback writes the
   JSON and calls `complete()`, and the response goes out in one `write`. Nothing ever blocks a loop, so no virtual
   threads, no `ThreadLocal`s and no hand-offs to worker threads are needed.
@@ -39,6 +39,12 @@ against the Servlet API: a standard `HttpServlet`, in async mode, on a container
   connection is an fd and a small object: the read buffer is shared per loop, and a connection gets its own only
   while it holds a partial request or unsent output. Measured with JFR under load: a few hundred bytes per request at
   most, i.e. a young GC every minute or so with a 2 GB heap (ParallelGC, pre-touched).
+- **Servlet mapping without a scan.** `Container.addServlet` takes exact, `/prefix/*` and default (`/`) patterns. A
+  lookup hashes the path's first N segments once per registered depth, deepest first, into a table whose multiplier
+  is searched at registration so patterns never collide, then checks the bytes: the cost does not grow with the number
+  of servlets. Inside a servlet, `HttpServlet.service` picks `doGet`/`doPost`/... (a method it has no table for is its
+  standard 405), and the op is one load from a table keyed by segment count and a keyword id (`WordTable`, hashed the
+  same way). `sendError` renders through the error servlet, which writes the API's `{"errors":...}` JSON.
 - **Backpressure.** At most `MAX_INFLIGHT_PER_LOOP` (1024) requests in flight per loop; past that a loop stops reading
   new requests until one completes, so overload raises latency instead of memory.
 

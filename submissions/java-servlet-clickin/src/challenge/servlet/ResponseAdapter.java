@@ -1,5 +1,6 @@
 package challenge.servlet;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
 import java.util.Collection;
@@ -99,11 +100,11 @@ abstract class ResponseAdapter implements HttpServletResponse {
         throw new UnsupportedOperationException();
     }
 
-    public void sendError(int p0, String p1) {
+    public void sendError(int p0, String p1) throws IOException {
         throw new UnsupportedOperationException();
     }
 
-    public void sendError(int p0) {
+    public void sendError(int p0) throws IOException {
         throw new UnsupportedOperationException();
     }
 

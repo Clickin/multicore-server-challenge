@@ -8,42 +8,15 @@ import java.util.Map;
 
 import challenge.Json;
 import challenge.Json.Malformed;
-import challenge.JsonWriter;
 import challenge.Jwt;
-import challenge.pg.Query;
 import challenge.servlet.Request;
-import challenge.servlet.Response;
 
-/** Shared request validation and DataRow formatting. */
-public final class Helpers {
-    private Helpers() {}
-
-    public static void raw(JsonWriter out, String s) {
-        out.raw(s);
-    }
-
-    public static void string(JsonWriter out, String s) {
-        byte[] b = s.getBytes(StandardCharsets.UTF_8);
-        out.string(b, 0, b.length);
-    }
-
-    public static void column(JsonWriter out, Query q, int row,
-            int col) {
-        if (q.isNull(row, col)) {
-            raw(out, "null");
-        } else {
-            out.string(q.bytes(), q.offset(row, col), q.length(row, col));
-        }
-    }
-
-    public static void error(Response res, int status, String message) {
-        res.setStatus(status);
-        res.setContentType("application/json");
-        JsonWriter out = res.jsonOut();
-        raw(out, "{\"errors\":{\"body\":[");
-        string(out, message);
-        raw(out, "]}}");
-    }
+/**
+ * Request input: bearer token, JSON body fields and the article list query
+ * parameters.
+ */
+public final class Inputs {
+    private Inputs() {}
 
     public static long viewer(Request req, Jwt jwt, boolean required) {
         int at = req.authorizationOffset();
@@ -429,87 +402,4 @@ public final class Helpers {
     }
 
     public static final class Invalid extends Exception {}
-
-    public static void user(JsonWriter out, Query q, int row,
-                            byte[] token, int offset, int length) {
-        raw(out, "{\"email\":");
-        column(out, q, row, 2);
-        raw(out, ",\"token\":");
-        out.string(token, offset, length);
-        raw(out, ",\"username\":");
-        column(out, q, row, 1);
-        raw(out, ",\"bio\":");
-        column(out, q, row, 3);
-        raw(out, ",\"image\":");
-        column(out, q, row, 4);
-        out.put('}');
-    }
-
-    public static void profile(JsonWriter out, Query q, int row,
-            int base, boolean following) {
-        raw(out, "{\"username\":");
-        column(out, q, row, base);
-        raw(out, ",\"bio\":");
-        column(out, q, row, base + 1);
-        raw(out, ",\"image\":");
-        column(out, q, row, base + 2);
-        raw(out, ",\"following\":");
-        raw(out, following ? "true" : "false");
-        out.put('}');
-    }
-
-    public static void article(JsonWriter out, Query q, int row,
-            boolean body) {
-        int shift = body ? 1 : 0;
-        raw(out, "{\"slug\":");
-        column(out, q, row, 1);
-        raw(out, ",\"title\":");
-        column(out, q, row, 2);
-        raw(out, ",\"description\":");
-        column(out, q, row, 3);
-        if (body) {
-            raw(out, ",\"body\":");
-            column(out, q, row, 4);
-        }
-        raw(out, ",\"createdAt\":");
-        Formats.timestamp(out, q.int8At(row, 4 + shift));
-        raw(out, ",\"updatedAt\":");
-        Formats.timestamp(out, q.int8At(row, 5 + shift));
-        raw(out, ",\"tagList\":[");
-        int col = 6 + shift;
-        for (int i = 0; i < q.arrayCount(row, col); i++) {
-            if (i > 0) {
-                out.put(',');
-            }
-            int p = q.arrayElementOffset(row, col, i);
-            if (p < 0) {
-                raw(out, "null");
-            } else {
-                out.string(q.bytes(), p, q.arrayElementLength(p));
-            }
-        }
-        raw(out, "],\"favoritesCount\":");
-        out.number(q.int8At(row, 7 + shift));
-        raw(out, ",\"favorited\":");
-        raw(out, q.boolAt(row, 8 + shift) ? "true" : "false");
-        raw(out, ",\"author\":");
-        profile(out, q, row, 9 + shift,
-                q.boolAt(row, 12 + shift));
-        out.put('}');
-    }
-
-    public static void comment(JsonWriter out, Query q, int row,
-            boolean following) {
-        raw(out, "{\"id\":");
-        out.number(q.int8At(row, 0));
-        raw(out, ",\"body\":");
-        column(out, q, row, 1);
-        raw(out, ",\"createdAt\":");
-        Formats.timestamp(out, q.int8At(row, 2));
-        raw(out, ",\"updatedAt\":");
-        Formats.timestamp(out, q.int8At(row, 3));
-        raw(out, ",\"author\":");
-        profile(out, q, row, 4, following);
-        out.put('}');
-    }
 }
