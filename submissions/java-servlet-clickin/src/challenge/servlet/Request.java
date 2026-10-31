@@ -412,37 +412,57 @@ public final class Request implements HttpServletRequest, Direct {
         return bodyLength;
     }
 
+    // The two error attributes sendError sets live in fields (no boxing, no map nodes per error response). Setting
+    // or removing them through the API drops the field and falls back to the ordinary map.
     public Object getAttribute(String name) {
-        if (errorStatus != 0) {
-            if (name.equals(RequestDispatcher.ERROR_STATUS_CODE)) {
-                return errorStatus;
-            }
-            if (name.equals(RequestDispatcher.ERROR_MESSAGE)) {
-                return errorMessage;
-            }
+        if (errorStatus != 0 && name.equals(RequestDispatcher.ERROR_STATUS_CODE)) {
+            return errorStatus;
+        }
+        if (errorMessage != null && name.equals(RequestDispatcher.ERROR_MESSAGE)) {
+            return errorMessage;
         }
         return attributes.get(name);
     }
 
     public void setAttribute(String name, Object value) {
-        if (name.equals(RequestDispatcher.ERROR_STATUS_CODE) || name.equals(RequestDispatcher.ERROR_MESSAGE)) {
-            throw new IllegalArgumentException("set by the container: " + name);
-        }
         if (value == null) {
-            attributes.remove(name);
-        } else {
-            attributes.put(name, value);
+            removeAttribute(name);
+            return;
         }
+        forgetError(name);
+        attributes.put(name, value);
     }
 
     public void removeAttribute(String name) {
+        forgetError(name);
         attributes.remove(name);
+    }
+
+    private void forgetError(String name) {
+        if (name.equals(RequestDispatcher.ERROR_STATUS_CODE)) {
+            errorStatus = 0;
+        } else if (name.equals(RequestDispatcher.ERROR_MESSAGE)) {
+            errorMessage = null;
+        }
+    }
+
+    /**
+     * Called by sendError: the status and message become the standard error
+     * attributes.
+     */
+    void error(int status, String message) {
+        attributes.remove(RequestDispatcher.ERROR_STATUS_CODE);
+        attributes.remove(RequestDispatcher.ERROR_MESSAGE);
+        errorStatus = status;
+        errorMessage = message;
     }
 
     public Enumeration<String> getAttributeNames() {
         List<String> names = new ArrayList<>(attributes.keySet());
         if (errorStatus != 0) {
             names.add(RequestDispatcher.ERROR_STATUS_CODE);
+        }
+        if (errorMessage != null) {
             names.add(RequestDispatcher.ERROR_MESSAGE);
         }
         return Collections.enumeration(names);
@@ -588,10 +608,19 @@ public final class Request implements HttpServletRequest, Direct {
         if (contentType == null) {
             return null;
         }
-        for (String part : contentType.split(";")) {
-            String p = part.strip();
-            if (p.regionMatches(true, 0, "charset=", 0, 8)) {
-                String v = p.substring(8).strip();
+        // Scanned in place: setContentType("application/json") runs on every response and must not allocate.
+        for (int semi = contentType.indexOf(';');
+             semi >= 0;
+             semi = contentType.indexOf(';', semi + 1)) {
+            int p = semi + 1;
+            while (p < contentType.length() && contentType.charAt(p) == ' ') {
+                p++;
+            }
+            if (contentType.regionMatches(true, p, "charset=", 0, 8)) {
+                int end = contentType.indexOf(';', p);
+                String v = contentType.substring(p + 8,
+                        end < 0 ? contentType.length() : end)
+                                      .strip();
                 return v.length() > 1 && v.startsWith("\"") && v.endsWith("\"")
                         ? v.substring(1, v.length() - 1)
                         : v;

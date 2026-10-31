@@ -60,6 +60,7 @@ public final class Loop implements Runnable {
      * only.
      */
     public Locals locals() {
+        assertLoopThread();
         return locals;
     }
 

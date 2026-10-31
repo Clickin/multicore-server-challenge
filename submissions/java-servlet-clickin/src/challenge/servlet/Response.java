@@ -103,8 +103,7 @@ public final class Response implements HttpServletResponse {
         if (errors == null) {
             return;
         }
-        request.errorStatus = status;
-        request.errorMessage = message;
+        request.error(status, message);
         DispatcherType type = request.dispatcherType;
         request.dispatcherType = DispatcherType.ERROR;
         try {

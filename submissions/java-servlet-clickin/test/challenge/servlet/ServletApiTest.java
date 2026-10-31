@@ -146,6 +146,13 @@ public final class ServletApiTest {
         c.service(r, res);
         equal(body(res), "ERROR 404 null");
         equal(r.getDispatcherType(), DispatcherType.REQUEST);
+        r.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 500);
+        equal(r.getAttribute(RequestDispatcher.ERROR_STATUS_CODE), 500);
+        r.removeAttribute(RequestDispatcher.ERROR_STATUS_CODE);
+        equal(r.getAttribute(RequestDispatcher.ERROR_STATUS_CODE), null);
+        equal(Request.charset("application/json"), null);
+        equal(Request.charset("text/plain;charset=UTF-8"), "UTF-8");
+        equal(Request.charset("text/plain; a=b; Charset=\"latin1\"; c=d"), "latin1");
 
         // Response headers, cookies, redirects, reset.
         res = new Response();
