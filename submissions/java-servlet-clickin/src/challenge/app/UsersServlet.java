@@ -8,6 +8,7 @@ import challenge.app.Conduit.Services;
 import challenge.app.Inputs.Body;
 import challenge.app.Inputs.Invalid;
 import challenge.pg.Query;
+import challenge.servlet.Direct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -22,29 +23,17 @@ import static challenge.app.Op.USER;
  * against the stored hash after it.
  */
 final class UsersServlet extends ApiServlet {
-    private static final String[] WORDS = {"user", "users", "login"};
-    private static final Ops GET = new Ops(WORDS).on(2, "user", USER);
-    private static final Ops POST = new Ops(WORDS)
-            .on(2, "users", REGISTER)
-            .on(3, "login", LOGIN);
-    private static final Ops PUT = new Ops(WORDS).on(2, "user", UPDATE);
-
     UsersServlet(Services services) {
         super(services);
     }
 
-    Ops table(String method) {
-        return switch (method) {
-            case "GET" -> GET;
-            case "POST" -> POST;
-            case "PUT" -> PUT;
-            default -> null;
-        };
-    }
-
     /** {@code GET /api/user}: the current user. */
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(GET, req, res);
+        if (!user(Direct.of(req))) {
+            notFound(res);
+            return;
+        }
+        Call call = begin(USER, req, res);
         if (call == null) {
             return;
         }
@@ -54,28 +43,14 @@ final class UsersServlet extends ApiServlet {
 
     /** {@code POST /api/users} registers, {@code POST /api/users/login} logs in. */
     protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(POST, req, res);
-        if (call == null) {
-            return;
-        }
-        Op op = call.op;
-        try {
-            Body body = Inputs.body(call.request, "user");
-            if (op == REGISTER) {
-                call.username = Inputs.field(body, "username", true, true);
-            }
-            call.email = Inputs.field(body, "email", true, true);
-            call.password = Inputs.password(body, true);
-        } catch (Invalid e) {
-            res.sendError(422, "invalid body");
-            return;
-        }
-        Query q = call.start();
-        if (op == REGISTER) {
-            call.bcrypt(call.password, UsersServlet::hashedForRegister);
+        Direct r = Direct.of(req);
+        int n = r.segmentCount();
+        if (n == 2 && r.segmentIs(1, "users")) {
+            credentials(REGISTER, req, res);
+        } else if (n == 3 && r.segmentIs(1, "users") && r.segmentIs(2, "login")) {
+            credentials(LOGIN, req, res);
         } else {
-            q.text(call.email);
-            call.submit(UsersServlet::foundForLogin);
+            notFound(res);
         }
     }
 
@@ -84,7 +59,11 @@ final class UsersServlet extends ApiServlet {
      * first.
      */
     protected void doPut(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(PUT, req, res);
+        if (!user(Direct.of(req))) {
+            notFound(res);
+            return;
+        }
+        Call call = begin(UPDATE, req, res);
         if (call == null) {
             return;
         }
@@ -104,6 +83,37 @@ final class UsersServlet extends ApiServlet {
             call.bcrypt(call.password, UsersServlet::hashedForUpdate);
         } else {
             update(call, null);
+        }
+    }
+
+    /** {@code /api/user}, not {@code /api/users}: both map here. */
+    private static boolean user(Direct r) {
+        return r.segmentCount() == 2 && r.segmentIs(1, "user");
+    }
+
+    /**
+     * Register or login: hashes the new password, or looks the user up by email
+     * first.
+     */
+    private void credentials(Op op, HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Call call = begin(op, req, res);
+        try {
+            Body body = Inputs.body(call.request, "user");
+            if (op == REGISTER) {
+                call.username = Inputs.field(body, "username", true, true);
+            }
+            call.email = Inputs.field(body, "email", true, true);
+            call.password = Inputs.password(body, true);
+        } catch (Invalid e) {
+            res.sendError(422, "invalid body");
+            return;
+        }
+        Query q = call.start();
+        if (op == REGISTER) {
+            call.bcrypt(call.password, UsersServlet::hashedForRegister);
+        } else {
+            q.text(call.email);
+            call.submit(UsersServlet::foundForLogin);
         }
     }
 

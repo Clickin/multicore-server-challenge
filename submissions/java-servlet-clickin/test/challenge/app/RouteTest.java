@@ -2,11 +2,11 @@ package challenge.app;
 
 import java.nio.charset.StandardCharsets;
 
-import challenge.app.ApiServlet.Ops;
+import challenge.Jwt;
 import challenge.app.Conduit.Services;
 import challenge.servlet.Container;
 import challenge.servlet.Request;
-import jakarta.servlet.http.HttpServlet;
+import challenge.servlet.Response;
 
 import static challenge.app.Op.ARTICLE;
 import static challenge.app.Op.ARTICLES;
@@ -28,38 +28,55 @@ import static challenge.app.Op.UPDATE;
 import static challenge.app.Op.UPDATE_ARTICLE;
 import static challenge.app.Op.USER;
 
-/** Container mapping plus each API servlet's per-method op table. */
+/**
+ * Requests through the container to the op each API servlet routes them to,
+ * with a valid token so every op gets past authentication.
+ */
 public final class RouteTest {
     private static final String NOT_ALLOWED = "405";
     private static final Container CONTAINER;
+    private static final String TOKEN;
 
     static {
         try {
             CONTAINER = Conduit.container(new Services(null, null, "secret"));
+            byte[] out = new byte[256];
+            int n = new Jwt("secret").sign(1, System.currentTimeMillis() / 1000, out, 0);
+            TOKEN = "Token " + new String(out, 0, n, StandardCharsets.US_ASCII);
         } catch (Exception e) {
             throw new ExceptionInInitializerError(e);
         }
     }
 
     /**
-     * The op, "405" when the mapped servlet has no table for the method, or
-     * null for 404.
+     * The op the servlet began, "405" when the servlet does not handle the
+     * method (501 for an unknown one), or null for 404.
      */
-    private static Object route(String method, String path) {
-        byte[] bytes = (method + " " + path + " HTTP/1.1\r\n\r\n").getBytes(StandardCharsets.UTF_8);
-        Request r = new Request(null);
-        r.data = bytes;
-        r.pathStart = method.length() + 1;
-        r.pathEnd = r.pathStart + path.length();
-        HttpServlet servlet = CONTAINER.map(r);
-        if (!(servlet instanceof ApiServlet api)) {
-            return null;
+    private static Object route(String method, String path) throws Exception {
+        String head = method + " " + path + " HTTP/1.1\r\nAuthorization: ";
+        byte[] bytes = (head + TOKEN + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+        Request req = new Request(null);
+        Response res = new Response();
+        req.init(res);
+        res.init(req, CONTAINER);
+        req.data = bytes;
+        req.pathStart = method.length() + 1;
+        req.pathEnd = req.pathStart + path.length();
+        req.queryStart = -1;
+        req.authStart = head.length();
+        req.authEnd = head.length() + TOKEN.length();
+        try {
+            CONTAINER.service(req, res);
+        } catch (NullPointerException e) {
+            // No database: the op got as far as submitting its work.
         }
-        Ops table = api.table(method.equals("HEAD") ? "GET" : method);
-        return table == null ? NOT_ALLOWED : table.find(r);
+        if (res.status == 405 || res.status == 501) {
+            return NOT_ALLOWED;
+        }
+        return req.slot() instanceof Call call ? call.op : null;
     }
 
-    private static void check(String method, String path, Object expected) {
+    private static void check(String method, String path, Object expected) throws Exception {
         Object actual = route(method, path);
         if (actual != expected) {
             throw new AssertionError(method
@@ -102,7 +119,7 @@ public final class RouteTest {
         check("GET", "/api/articles/favorite/comments", COMMENTS);
         check("DELETE", "/api/articles/x/comments/comments", DELETE_COMMENT);
         // Near misses: prefixes, extensions, case, wrong count, wrong root (404).
-        // A method the servlet has no table for is HttpServlet's 405 (501 for unknown methods) instead of 404.
+        // A method the servlet does not override is HttpServlet's 405 (501 for unknown methods) instead of 404.
         check("GET", "/api/tag", null);
         check("GET", "/api/tagsx", null);
         check("GET", "/api/Tags", null);

@@ -34,22 +34,6 @@ import static challenge.app.Op.UPDATE_ARTICLE;
  * comments.
  */
 final class ArticlesServlet extends ApiServlet {
-    private static final String[] WORDS = {"feed", "favorite", "comments"};
-    private static final Ops GET = new Ops(WORDS)
-            .on(2, null, ARTICLES)
-            .on(3, null, ARTICLE)
-            .on(3, "feed", FEED)
-            .on(4, "comments", COMMENTS);
-    private static final Ops POST = new Ops(WORDS)
-            .on(2, null, CREATE_ARTICLE)
-            .on(4, "favorite", FAVORITE)
-            .on(4, "comments", CREATE_COMMENT);
-    private static final Ops PUT = new Ops(WORDS).on(3, null, UPDATE_ARTICLE);
-    private static final Ops DELETE = new Ops(WORDS)
-            .on(3, null, DELETE_ARTICLE)
-            .on(4, "favorite", UNFAVORITE)
-            .on(5, "comments", DELETE_COMMENT);
-
     /** The list op by filter parameter index. */
     private static final Op[] FILTERED = {ARTICLES, null, ARTICLES_TAG, ARTICLES_AUTHOR, ARTICLES_FAVORITED};
 
@@ -57,49 +41,60 @@ final class ArticlesServlet extends ApiServlet {
         super(services);
     }
 
-    Ops table(String method) {
-        return switch (method) {
-            case "GET" -> GET;
-            case "POST" -> POST;
-            case "PUT" -> PUT;
-            case "DELETE" -> DELETE;
-            default -> null;
-        };
-    }
-
+    /**
+     * {@code /api/articles}, {@code /feed}, {@code /{slug}} and {@code
+     * /{slug}/comments}.
+     */
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(GET, req, res);
-        if (call == null) {
-            return;
-        }
-        switch (call.op) {
-            case ARTICLES, FEED -> list(call, res);
-            case ARTICLE -> {
-                call.target(call.start().int8(call.viewer));
-                call.submit(ArticlesServlet::article);
+        Direct r = Direct.of(req);
+        switch (r.segmentCount()) {
+            case 2 -> list(ARTICLES, req, res);
+            case 3 -> {
+                if (r.segmentIs(2, "feed")) {
+                    list(FEED, req, res);
+                } else {
+                    targeted(ARTICLE, ArticlesServlet::article, req, res);
+                }
             }
-            default -> {
-                call.target(call.start().int8(call.viewer));
-                call.submit(ArticlesServlet::comments);
+            case 4 -> {
+                if (r.segmentIs(3, "comments")) {
+                    targeted(COMMENTS, ArticlesServlet::comments, req, res);
+                } else {
+                    notFound(res);
+                }
             }
+            default -> notFound(res);
         }
     }
 
+    /**
+     * {@code /api/articles}, {@code /{slug}/favorite} and {@code
+     * /{slug}/comments}.
+     */
     protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(POST, req, res);
-        if (call == null) {
-            return;
-        }
-        switch (call.op) {
-            case CREATE_ARTICLE -> create(call, res);
-            case FAVORITE -> favorite(call);
-            default -> comment(call, res);
+        Direct r = Direct.of(req);
+        switch (r.segmentCount()) {
+            case 2 -> create(req, res);
+            case 4 -> {
+                if (r.segmentIs(3, "favorite")) {
+                    favorite(FAVORITE, req, res);
+                } else if (r.segmentIs(3, "comments")) {
+                    comment(req, res);
+                } else {
+                    notFound(res);
+                }
+            }
+            default -> notFound(res);
         }
     }
 
     /** {@code PUT /api/articles/{slug}}: changes the given fields, author only. */
     protected void doPut(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(PUT, req, res);
+        if (Direct.of(req).segmentCount() != 3) {
+            notFound(res);
+            return;
+        }
+        Call call = begin(UPDATE_ARTICLE, req, res);
         if (call == null) {
             return;
         }
@@ -123,30 +118,29 @@ final class ArticlesServlet extends ApiServlet {
         call.submit(ArticlesServlet::updated);
     }
 
+    /**
+     * {@code /api/articles/{slug}}, {@code /{slug}/favorite} and {@code
+     * /{slug}/comments/{id}}.
+     */
     protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(DELETE, req, res);
-        if (call == null) {
-            return;
-        }
-        switch (call.op) {
-            case DELETE_ARTICLE -> {
-                call.target(call.start().int8(call.viewer));
-                call.submit(ArticlesServlet::deleted);
-            }
-            case UNFAVORITE -> favorite(call);
-            default -> {
-                Direct r = call.request;
-                long id;
-                try {
-                    id = Long.parseLong(new String(r.bytes(), r.segmentStart(4), r.segmentEnd(4) - r.segmentStart(4),
-                            StandardCharsets.UTF_8));
-                } catch (NumberFormatException e) {
-                    res.sendError(404, "not found");
-                    return;
+        Direct r = Direct.of(req);
+        switch (r.segmentCount()) {
+            case 3 -> targeted(DELETE_ARTICLE, ArticlesServlet::deleted, req, res);
+            case 4 -> {
+                if (r.segmentIs(3, "favorite")) {
+                    favorite(UNFAVORITE, req, res);
+                } else {
+                    notFound(res);
                 }
-                call.target(call.start().int8(call.viewer)).int8(id);
-                call.submit(ArticlesServlet::deleted);
             }
+            case 5 -> {
+                if (r.segmentIs(3, "comments")) {
+                    uncomment(req, res);
+                } else {
+                    notFound(res);
+                }
+            }
+            default -> notFound(res);
         }
     }
 
@@ -154,7 +148,11 @@ final class ArticlesServlet extends ApiServlet {
      * The article list or the feed, paged. A tag, author or favorited filter
      * (query parameter 2, 3 or 4) picks the list's statement.
      */
-    private static void list(Call call, HttpServletResponse res) throws IOException {
+    private void list(Op op, HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Call call = begin(op, req, res);
+        if (call == null) {
+            return;
+        }
         Params params = call.params;
         int limit;
         int offset;
@@ -185,7 +183,11 @@ final class ArticlesServlet extends ApiServlet {
     }
 
     /** Inserts the tags, then the article. */
-    private static void create(Call call, HttpServletResponse res) throws IOException {
+    private void create(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Call call = begin(CREATE_ARTICLE, req, res);
+        if (call == null) {
+            return;
+        }
         String title;
         String description;
         String text;
@@ -212,13 +214,21 @@ final class ArticlesServlet extends ApiServlet {
     }
 
     /** Favorites or unfavorites, then reads the article back. */
-    private static void favorite(Call call) {
+    private void favorite(Op op, HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Call call = begin(op, req, res);
+        if (call == null) {
+            return;
+        }
         call.target(call.start(Stmt.ARTICLE, false).int8(call.viewer));
         call.target(call.query.int8(call.viewer));
         call.submit(ArticlesServlet::favorited);
     }
 
-    private static void comment(Call call, HttpServletResponse res) throws IOException {
+    private void comment(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Call call = begin(CREATE_COMMENT, req, res);
+        if (call == null) {
+            return;
+        }
         String text;
         try {
             text = Inputs.field(Inputs.body(call.request, "comment"), "body", true, true);
@@ -228,6 +238,25 @@ final class ArticlesServlet extends ApiServlet {
         }
         call.target(call.start().int8(call.viewer)).text(text);
         call.submit(ArticlesServlet::commented);
+    }
+
+    /** Deletes the comment, author only; a non-numeric id is not found. */
+    private void uncomment(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Call call = begin(DELETE_COMMENT, req, res);
+        if (call == null) {
+            return;
+        }
+        Direct r = call.request;
+        long id;
+        try {
+            id = Long.parseLong(new String(r.bytes(), r.segmentStart(4), r.segmentEnd(4) - r.segmentStart(4),
+                    StandardCharsets.UTF_8));
+        } catch (NumberFormatException e) {
+            notFound(res);
+            return;
+        }
+        call.target(call.start().int8(call.viewer)).int8(id);
+        call.submit(ArticlesServlet::deleted);
     }
 
     private static void articles(Call call, Query q) {

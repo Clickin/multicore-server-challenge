@@ -57,6 +57,22 @@ public interface Direct {
 
     int segmentEnd(int index);
 
+    /** Segment {@code index} is exactly {@code word} (ASCII). */
+    default boolean segmentIs(int index, String word) {
+        int start = segmentStart(index);
+        int length = segmentEnd(index) - start;
+        if (length != word.length()) {
+            return false;
+        }
+        byte[] b = bytes();
+        for (int i = 0; i < length; i++) {
+            if (b[start + i] != word.charAt(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * An object pooled with this request across exchanges on the connection's
      * loop, for per-request state.

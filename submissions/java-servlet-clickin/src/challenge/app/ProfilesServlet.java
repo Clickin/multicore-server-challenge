@@ -5,6 +5,7 @@ import java.io.IOException;
 import challenge.JsonWriter;
 import challenge.app.Conduit.Services;
 import challenge.pg.Query;
+import challenge.servlet.Direct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -14,43 +15,39 @@ import static challenge.app.Op.UNFOLLOW;
 
 /** {@code /api/profiles/{username}} and its {@code /follow}. */
 final class ProfilesServlet extends ApiServlet {
-    private static final Ops GET = new Ops("follow").on(3, null, PROFILE);
-    private static final Ops POST = new Ops("follow").on(4, "follow", FOLLOW);
-    private static final Ops DELETE = new Ops("follow").on(4, "follow", UNFOLLOW);
-
     ProfilesServlet(Services services) {
         super(services);
     }
 
-    Ops table(String method) {
-        return switch (method) {
-            case "GET" -> GET;
-            case "POST" -> POST;
-            case "DELETE" -> DELETE;
-            default -> null;
-        };
-    }
-
+    /** {@code GET /api/profiles/{username}}. */
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        profile(GET, req, res);
-    }
-
-    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        profile(POST, req, res);
-    }
-
-    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        profile(DELETE, req, res);
-    }
-
-    /** Reads the profile, or follows or unfollows it and returns it. */
-    private void profile(Ops ops, HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(ops, req, res);
-        if (call == null) {
-            return;
+        if (Direct.of(req).segmentCount() == 3) {
+            targeted(PROFILE, ProfilesServlet::write, req, res);
+        } else {
+            notFound(res);
         }
-        call.target(call.start().int8(call.viewer));
-        call.submit(ProfilesServlet::write);
+    }
+
+    /** {@code POST /api/profiles/{username}/follow}. */
+    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        if (follow(Direct.of(req))) {
+            targeted(FOLLOW, ProfilesServlet::write, req, res);
+        } else {
+            notFound(res);
+        }
+    }
+
+    /** {@code DELETE /api/profiles/{username}/follow}. */
+    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        if (follow(Direct.of(req))) {
+            targeted(UNFOLLOW, ProfilesServlet::write, req, res);
+        } else {
+            notFound(res);
+        }
+    }
+
+    private static boolean follow(Direct r) {
+        return r.segmentCount() == 4 && r.segmentIs(3, "follow");
     }
 
     private static void write(Call call, Query q) {

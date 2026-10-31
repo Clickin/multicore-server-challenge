@@ -9,23 +9,14 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import static challenge.app.Op.TAGS;
 
-/** {@code GET /api/tags}. */
+/** {@code GET /api/tags} (mapped exactly, so there is no path to route). */
 final class TagsServlet extends ApiServlet {
-    private static final Ops GET = new Ops().on(2, null, TAGS);
-
     TagsServlet(Services services) {
         super(services);
     }
 
-    Ops table(String method) {
-        return method.equals("GET") ? GET : null;
-    }
-
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        Call call = begin(GET, req, res);
-        if (call == null) {
-            return;
-        }
+        Call call = begin(TAGS, req, res);
         call.start();
         call.submit(TagsServlet::write);
     }

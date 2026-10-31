@@ -48,9 +48,10 @@ against the Servlet API: standard `HttpServlet`s, in async mode, on a container 
 - **Servlet mapping without a scan.** `Container.addServlet` takes exact, `/prefix/*` and default (`/`) patterns. A
   lookup hashes the path's first N segments once per registered depth, deepest first, into a table whose multiplier
   is searched at registration so patterns never collide, then checks the bytes: the cost does not grow with the number
-  of servlets. Inside a servlet, `HttpServlet.service` picks `doGet`/`doPost`/... (a method it has no table for is its
-  standard 405), and the op is one load from a table keyed by segment count and a keyword id (`WordTable`, hashed the
-  same way). `sendError` renders through the error servlet, which writes the API's `{"errors":...}` JSON.
+  of servlets. Inside a servlet, `HttpServlet.service` picks `doGet`/`doPost`/... (a method the servlet does not
+  override is its standard 405), and the method routes the rest of the path itself: the segment count and at most one
+  keyword compare pick the handler, which binds the query and submits it with the step to run on the result.
+  `sendError` renders through the error servlet, which writes the API's `{"errors":...}` JSON.
 - **The rest of the Servlet API, lazily.** Readers and writers (with the request/response character encodings),
   cookies, locales, remote and local addresses (`getpeername`/`getsockname` on first call), `Host`-based server name
   and URL, `HttpServletMapping`, dispatcher types (ERROR inside the error servlet, ASYNC after `AsyncContext.dispatch()`),
@@ -133,7 +134,7 @@ so compare with the leaderboard loosely.
   per-request ones, and the feed shortcut the counts of the reference SQL (2,000 viewers).
 - `test/run-unit.sh`: wire-protocol parsing (fragmented messages, errors, group retry), JWT edge cases, bcrypt
   vectors across lanes, JSON escaping, timestamp formatting, slugify, servlet mapping and method dispatch, the
-  standard request/response API, per-servlet op tables.
+  standard request/response API, each servlet's routing (through the container, keyword-like slugs included).
 - `test/http-smoke.sh`: pipelining, chunked bodies, HEAD without a body, 405, `AsyncContext.start` and `dispatch()`,
   peer address.
 
