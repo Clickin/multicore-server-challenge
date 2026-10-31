@@ -120,7 +120,7 @@ The score is the **95,000-user hold**: 0 errors, and the load boxes were not the
 From there the box itself is out of CPU, Postgres taking about 60% of it; throughput stops growing at ~25k req/s
 and queueing pushes p99 past 1 s by 100,000 users. The loadgen also flagged the 100k and 105k probes "LG-limited"
 (one load box's sampler tick was ~3 s late), so those two are not clean server failures, but the box CPU says the
-same thing. The commit before the servlet restructure (`c8a314b`), run on the same boxes at 105,000, gave 25,499
+same thing. The commit before the servlet restructure (`0fd83b2`), run on the same boxes at 105,000, gave 25,499
 req/s and p95 530 ms, i.e. no regression from it. An earlier run with two cx43 load boxes held 105,000 with
 load-box warnings; this run could not reproduce that, so the numbers above replace it. This is not the official box,
 so compare with the leaderboard loosely.
