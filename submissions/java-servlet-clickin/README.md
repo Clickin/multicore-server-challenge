@@ -45,6 +45,13 @@ against the Servlet API: standard `HttpServlet`s, in async mode, on a container 
   of servlets. Inside a servlet, `HttpServlet.service` picks `doGet`/`doPost`/... (a method it has no table for is its
   standard 405), and the op is one load from a table keyed by segment count and a keyword id (`WordTable`, hashed the
   same way). `sendError` renders through the error servlet, which writes the API's `{"errors":...}` JSON.
+- **The rest of the Servlet API, lazily.** Readers and writers (with the request/response character encodings),
+  cookies, locales, remote and local addresses (`getpeername`/`getsockname` on first call), `Host`-based server name
+  and URL, `HttpServletMapping`, dispatcher types (ERROR inside the error servlet, ASYNC after `AsyncContext.dispatch()`),
+  `AsyncContext.start` (a pooled task on the request's own loop, so the runnable must not block) and async listeners.
+  None of it runs unless called. Not provided: sessions, login, multipart, request dispatching to other paths,
+  protocol upgrade and trailers; those throw or answer as the spec says for a container without them. The async
+  timeout is stored but not enforced, and a response is sent whole on completion (`flushBuffer` cannot commit early).
 - **Backpressure.** At most `MAX_INFLIGHT_PER_LOOP` (1024) requests in flight per loop; past that a loop stops reading
   new requests until one completes, so overload raises latency instead of memory.
 

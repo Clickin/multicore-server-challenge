@@ -12,6 +12,7 @@ import java.lang.invoke.VarHandle;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteOrder;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -86,6 +87,8 @@ public final class Sys {
             Option.firstVariadicArg(2), ERRNO);
     private static final MethodHandle ACCEPT4 = fn("accept4", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
             CRITICAL, ERRNO);
+    private static final MethodHandle GETPEERNAME = fn("getpeername", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+    private static final MethodHandle GETSOCKNAME = fn("getsockname", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
     private static final MethodHandle EPOLL_CREATE1 = fn("epoll_create1", FunctionDescriptor.of(JAVA_INT, JAVA_INT), ERRNO);
     private static final MethodHandle EPOLL_CTL = fn("epoll_ctl", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS), CRITICAL);
     private static final MethodHandle EPOLL_WAIT = fn("epoll_wait", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT), ERRNO);
@@ -243,6 +246,25 @@ public final class Sys {
         MemorySegment.copy(addr, 0, sa, JAVA_BYTE,
                 host instanceof Inet4Address ? 4 : 8, addr.length);
         return sa;
+    }
+
+    /** The socket's peer (or local) address, or null if the call fails. */
+    public InetSocketAddress address(int fd, boolean peer) {
+        MemorySegment sa = scratch.asSlice(0, 28).fill((byte) 0);
+        MemorySegment len = scratch.asSlice(32, 4);
+        len.set(JAVA_INT, 0, 28);
+        try {
+            if ((int) (peer ? GETPEERNAME : GETSOCKNAME).invokeExact(fd, sa, len) != 0) {
+                return null;
+            }
+            boolean v6 = sa.get(JAVA_SHORT, 0) == AF_INET6;
+            byte[] addr = new byte[v6 ? 16 : 4];
+            MemorySegment.copy(sa, JAVA_BYTE, v6 ? 8 : 4, addr,
+                    0, addr.length);
+            return new InetSocketAddress(InetAddress.getByAddress(addr), sa.get(JAVA_SHORT.withOrder(ByteOrder.BIG_ENDIAN), 2) & 0xffff);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
     }
 
     int setInt(int fd, int level, int name,

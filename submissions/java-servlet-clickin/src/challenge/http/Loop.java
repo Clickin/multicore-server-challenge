@@ -4,6 +4,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -45,6 +46,15 @@ public final class Loop implements Runnable {
     private final AtomicBoolean signalled = new AtomicBoolean();
     private Thread thread;
     private Jwt jwt;
+
+    /**
+     * Peer or local address of a connection socket; loop thread only (uses the
+     * loop's syscall scratch).
+     */
+    public InetSocketAddress address(int fd, boolean peer) {
+        assertLoopThread();
+        return sys.address(fd, peer);
+    }
 
     public Jwt jwt(String secret) {
         if (jwt == null) {
@@ -369,7 +379,8 @@ public final class Loop implements Runnable {
                 ex = new Exchange(this);
             }
             ex.request.reset();
-            ex.response.reset();
+            ex.response.recycle();
+            ex.request.fd = c.fd;
             ex.request.data = c.input;
             int consumed = parse(ex.request, c.length);
             if (consumed == 0) {
@@ -411,7 +422,7 @@ public final class Loop implements Runnable {
                 }
             }
             c.dispatching = false;
-            if (c.exchange == ex && !ex.request.isAsyncStarted()) {
+            if (c.exchange == ex && !ex.request.asyncPending()) {
                 finish(c, ex);
             }
             if (!c.closed && !c.busy && !pending.isEmpty()) {
@@ -473,7 +484,7 @@ public final class Loop implements Runnable {
         byte[] input = ex.request.data;
         ex.request.reset();
         recycleInput(input);
-        ex.response.reset();
+        ex.response.recycle();
         ex.conn = null;
         pool.addFirst(ex);
         c.exchange = null;

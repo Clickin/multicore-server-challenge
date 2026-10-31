@@ -11,12 +11,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 import jakarta.servlet.ServletConfig;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.MappingMatch;
 
 /**
  * Servlet mapping and dispatch. Patterns follow the Servlet spec subset this
@@ -38,6 +41,8 @@ public final class Container {
         final int length;
         HttpServlet exact;
         HttpServlet prefix;
+        String exactPattern;
+        String prefixPattern;
 
         Entry(byte[] path) {
             length = path.length;
@@ -46,10 +51,47 @@ public final class Container {
     }
 
     private final List<Entry> entries = new ArrayList<>();
+    private final Map<String, Object> attributes = new ConcurrentHashMap<>();
+
+    /**
+     * The one context: root path, version, attributes and logging. Everything a
+     * deployment descriptor or dynamic registration would provide (other
+     * servlets, filters, listeners, resources, sessions) is not available here
+     * and throws.
+     */
     private final ServletContext context = (ServletContext) Proxy.newProxyInstance(Container.class.getClassLoader(), new Class<?>[] {ServletContext.class},
-            (proxy, method, arguments) -> {
-                throw new UnsupportedOperationException("ServletContext." + method.getName());
-            });
+            (proxy, method, a) -> switch (method.getName()) {
+                        case "getContextPath", "getServletContextName" -> "";
+                        case "getServerInfo" -> "challenge/1";
+                        case "getMajorVersion", "getEffectiveMajorVersion" -> 6;
+                        case "getMinorVersion", "getEffectiveMinorVersion" -> 1;
+                        case "getContext" -> "/".equals(a[0]) || "".equals(a[0])
+                                ? proxy
+                                : null;
+                        case "getAttribute" -> attributes.get((String) a[0]);
+                        case "getAttributeNames" -> Collections.enumeration(attributes.keySet());
+                        case "setAttribute" -> a[1] == null ? attributes.remove((String) a[0]) : attributes.put((String) a[0], a[1]);
+                        case "removeAttribute" -> attributes.remove((String) a[0]);
+                        case "getInitParameter", "getMimeType", "getRequestDispatcher", "getNamedDispatcher", "getResource", "getResourceAsStream", "getRealPath" ->
+                                null;
+                        case "getInitParameterNames" -> Collections.emptyEnumeration();
+                        case "getRequestCharacterEncoding" -> "UTF-8";
+                        case "getResponseCharacterEncoding" -> null;
+                        case "getClassLoader" -> Container.class.getClassLoader();
+                        case "getVirtualServerName" -> "localhost";
+                        case "log" -> {
+                            System.err.println(a[0]);
+                            if (a.length > 1 && a[1] instanceof Throwable t) {
+                                t.printStackTrace();
+                            }
+                            yield null;
+                        }
+                        case "hashCode" -> System.identityHashCode(proxy);
+                        case "equals" -> proxy == a[0];
+                        case "toString" -> "ServletContext[/]";
+                        default -> throw new UnsupportedOperationException("ServletContext." + method.getName());
+                    });
+
     private HttpServlet defaultServlet;
     private HttpServlet errorServlet;
     private Entry[] table = new Entry[1];
@@ -91,8 +133,10 @@ public final class Container {
         }
         if (prefix) {
             entry.prefix = servlet;
+            entry.prefixPattern = pattern;
         } else {
             entry.exact = servlet;
+            entry.exactPattern = pattern;
         }
         rebuild();
     }
@@ -104,6 +148,10 @@ public final class Container {
     public void setErrorServlet(HttpServlet servlet) throws ServletException {
         servlet.init(config(servlet.getClass().getSimpleName()));
         errorServlet = servlet;
+    }
+
+    ServletContext context() {
+        return context;
     }
 
     HttpServlet errorServlet() {
@@ -189,6 +237,8 @@ public final class Container {
         req.method = Request.METHODS.id(b, 0, req.pathStart - 1);
         HttpServlet servlet = defaultServlet;
         int servletPathEnd = req.pathEnd;
+        req.match = MappingMatch.DEFAULT;
+        req.pattern = "/";
         for (int depth : depths) {
             if (depth > count) {
                 continue;
@@ -201,15 +251,20 @@ public final class Container {
             }
             if (depth == count && e.exact != null) {
                 servlet = e.exact;
+                req.match = MappingMatch.EXACT;
+                req.pattern = e.exactPattern;
                 break;
             }
             if (e.prefix != null) {
                 servlet = e.prefix;
                 servletPathEnd = end[depth - 1];
+                req.match = MappingMatch.PATH;
+                req.pattern = e.prefixPattern;
                 break;
             }
         }
         req.servletPathEnd = servletPathEnd;
+        req.servletName = servlet == null ? null : servlet.getServletName();
         return servlet;
     }
 

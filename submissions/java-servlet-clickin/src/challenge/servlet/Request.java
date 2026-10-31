@@ -1,31 +1,56 @@
 package challenge.servlet;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Locale.LanguageRange;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import challenge.WordTable;
 import challenge.http.Loop;
 import jakarta.servlet.AsyncContext;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ReadListener;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletConnection;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletRequestWrapper;
 import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletMapping;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpUpgradeHandler;
+import jakarta.servlet.http.MappingMatch;
+import jakarta.servlet.http.Part;
+import jakarta.servlet.http.PushBuilder;
 
-public final class Request extends RequestAdapter {
+public final class Request implements HttpServletRequest {
     /**
      * Method names returned by getMethod(), indexed by {@link #method}; 0 is
      * any other token.
@@ -55,6 +80,7 @@ public final class Request extends RequestAdapter {
     private Response response;
     private Async async;
     private boolean started;
+    boolean redispatch;
     public final int[] segmentStarts = new int[6];
     public final int[] segmentEnds = new int[6];
 
@@ -68,6 +94,88 @@ public final class Request extends RequestAdapter {
     int servletPathEnd;
     public Object applicationSlot;
 
+    /** Socket of the connection this request came on; set by the loop. */
+    public int fd = -1;
+
+    MappingMatch match;
+    String pattern;
+    String servletName;
+    DispatcherType dispatcherType = DispatcherType.REQUEST;
+    int errorStatus;
+    String errorMessage;
+    private static final AtomicInteger CREATED = new AtomicInteger();
+    private final int index = CREATED.incrementAndGet();
+    private long serial;
+    private String characterEncoding;
+    private Cookie[] cookies;
+    private InetSocketAddress remote;
+    private InetSocketAddress local;
+    private int bodyRead;
+
+    /** 0 nothing taken yet, 1 getInputStream, 2 getReader. */
+    private int bodyMode;
+
+    private BufferedReader reader;
+    private final ServletInputStream input = new ServletInputStream() {
+        public int read() {
+            return bodyRead < bodyLength ? data[bodyStart + bodyRead++] & 255 : -1;
+        }
+
+        public int read(byte[] b, int off, int len) {
+            if (bodyRead >= bodyLength) {
+                return len == 0 ? 0 : -1;
+            }
+            int n = Math.min(len, bodyLength - bodyRead);
+            System.arraycopy(data, bodyStart + bodyRead, b, off, n);
+            bodyRead += n;
+            return n;
+        }
+
+        public int available() {
+            return bodyLength - bodyRead;
+        }
+
+        public boolean isFinished() {
+            return bodyRead >= bodyLength;
+        }
+
+        public boolean isReady() {
+            return true;
+        }
+
+        /**
+         * The whole body is in memory before the servlet runs, so the listener
+         * is called back immediately.
+         */
+        public void setReadListener(ReadListener l) {
+            try {
+                if (bodyRead < bodyLength) {
+                    l.onDataAvailable();
+                }
+                l.onAllDataRead();
+            } catch (IOException e) {
+                l.onError(e);
+            }
+        }
+    };
+    private final ServletConnection connection = new ServletConnection() {
+        public String getConnectionId() {
+            return Integer.toString(fd);
+        }
+
+        public String getProtocol() {
+            return "HTTP/1.1";
+        }
+
+        public String getProtocolConnectionId() {
+            return "";
+        }
+
+        public boolean isSecure() {
+            return false;
+        }
+    };
+
     public Request(Loop loop) {
         this.loop = loop;
     }
@@ -79,10 +187,20 @@ public final class Request extends RequestAdapter {
 
     public void reset() {
         data = null;
+        serial++;
+        dispatcherType = DispatcherType.REQUEST;
+        errorStatus = 0;
+        errorMessage = null;
+        characterEncoding = null;
+        cookies = null;
+        remote = local = null;
+        bodyRead = bodyMode = 0;
+        reader = null;
         headerCount = 0;
         attributes.clear();
         parameters = null;
         started = false;
+        redispatch = false;
         authStart = -1;
         gzip = close = multipleAuthorization = false;
     }
@@ -96,6 +214,10 @@ public final class Request extends RequestAdapter {
         headerOffsets[headerCount++] = nameEnd;
         headerOffsets[headerCount++] = valueStart;
         headerOffsets[headerCount++] = valueEnd;
+    }
+
+    Response response() {
+        return response;
     }
 
     public Loop loop() {
@@ -248,10 +370,21 @@ public final class Request extends RequestAdapter {
     }
 
     public Object getAttribute(String name) {
+        if (errorStatus != 0) {
+            if (name.equals(RequestDispatcher.ERROR_STATUS_CODE)) {
+                return errorStatus;
+            }
+            if (name.equals(RequestDispatcher.ERROR_MESSAGE)) {
+                return errorMessage;
+            }
+        }
         return attributes.get(name);
     }
 
     public void setAttribute(String name, Object value) {
+        if (name.equals(RequestDispatcher.ERROR_STATUS_CODE) || name.equals(RequestDispatcher.ERROR_MESSAGE)) {
+            throw new IllegalArgumentException("set by the container: " + name);
+        }
         if (value == null) {
             attributes.remove(name);
         } else {
@@ -264,7 +397,12 @@ public final class Request extends RequestAdapter {
     }
 
     public Enumeration<String> getAttributeNames() {
-        return Collections.enumeration(attributes.keySet());
+        List<String> names = new ArrayList<>(attributes.keySet());
+        if (errorStatus != 0) {
+            names.add(RequestDispatcher.ERROR_STATUS_CODE);
+            names.add(RequestDispatcher.ERROR_MESSAGE);
+        }
+        return Collections.enumeration(names);
     }
 
     public String getParameter(String name) {
@@ -304,28 +442,6 @@ public final class Request extends RequestAdapter {
         return Collections.unmodifiableMap(parameters);
     }
 
-    public ServletInputStream getInputStream() {
-        return new ServletInputStream() {
-            int pos;
-
-            public int read() {
-                return pos < bodyLength ? data[bodyStart + pos++] & 255 : -1;
-            }
-
-            public boolean isFinished() {
-                return pos >= bodyLength;
-            }
-
-            public boolean isReady() {
-                return true;
-            }
-
-            public void setReadListener(ReadListener l) {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
     public AsyncContext startAsync() {
         if (started) {
             throw new IllegalStateException();
@@ -345,6 +461,14 @@ public final class Request extends RequestAdapter {
         return started;
     }
 
+    /**
+     * Async mode, or an {@code AsyncContext.dispatch()} still to run: the
+     * exchange is not done when service returns.
+     */
+    public boolean asyncPending() {
+        return started || redispatch;
+    }
+
     public boolean isAsyncSupported() {
         return true;
     }
@@ -361,5 +485,372 @@ public final class Request extends RequestAdapter {
             throw new IllegalStateException();
         }
         started = false;
+    }
+
+    public ServletInputStream getInputStream() {
+        if (bodyMode == 2) {
+            throw new IllegalStateException("getReader() already called");
+        }
+        bodyMode = 1;
+        return input;
+    }
+
+    public BufferedReader getReader() throws UnsupportedEncodingException {
+        if (bodyMode == 1) {
+            throw new IllegalStateException("getInputStream() already called");
+        }
+        if (reader == null) {
+            Charset charset;
+            try {
+                charset = Charset.forName(getCharacterEncoding());
+            } catch (IllegalArgumentException e) {
+                throw new UnsupportedEncodingException(getCharacterEncoding());
+            }
+            bodyMode = 2;
+            reader = new BufferedReader(new InputStreamReader(input, charset));
+        }
+        return reader;
+    }
+
+    /**
+     * Explicitly set, else the Content-Type charset, else UTF-8 (this
+     * container's default request encoding).
+     */
+    public String getCharacterEncoding() {
+        if (characterEncoding != null) {
+            return characterEncoding;
+        }
+        String charset = charset(getContentType());
+        return charset != null ? charset : "UTF-8";
+    }
+
+    public void setCharacterEncoding(String encoding) throws UnsupportedEncodingException {
+        if (bodyMode == 2) {
+            return;
+        }
+        if (!Charset.isSupported(encoding)) {
+            throw new UnsupportedEncodingException(encoding);
+        }
+        characterEncoding = encoding;
+    }
+
+    public void setCharacterEncoding(Charset encoding) {
+        if (bodyMode != 2) {
+            characterEncoding = encoding.name();
+        }
+    }
+
+    /** The charset parameter of a Content-Type value, or null. */
+    static String charset(String contentType) {
+        if (contentType == null) {
+            return null;
+        }
+        for (String part : contentType.split(";")) {
+            String p = part.strip();
+            if (p.regionMatches(true, 0, "charset=", 0, 8)) {
+                String v = p.substring(8).strip();
+                return v.length() > 1 && v.startsWith("\"") && v.endsWith("\"")
+                        ? v.substring(1, v.length() - 1)
+                        : v;
+            }
+        }
+        return null;
+    }
+
+    public String getContentType() {
+        return getHeader("Content-Type");
+    }
+
+    public int getIntHeader(String name) {
+        String value = getHeader(name);
+        return value == null ? -1 : Integer.parseInt(value.strip());
+    }
+
+    public Cookie[] getCookies() {
+        if (cookies == null) {
+            List<Cookie> list = new ArrayList<>();
+            for (Enumeration<String> e = getHeaders("Cookie"); e.hasMoreElements(); ) {
+                for (String pair : e.nextElement().split(";")) {
+                    int eq = pair.indexOf('=');
+                    String name = (eq < 0 ? pair : pair.substring(0, eq)).strip();
+                    if (name.isEmpty()) {
+                        continue;
+                    }
+                    String value = eq < 0 ? "" : pair.substring(eq + 1).strip();
+                    if (value.length() > 1 && value.startsWith("\"") && value.endsWith("\"")) {
+                        value = value.substring(1, value.length() - 1);
+                    }
+                    try {
+                        list.add(new Cookie(name, value));
+                    } catch (IllegalArgumentException ignored) {
+                        // not a valid cookie name: skipped, as Tomcat does
+                    }
+                }
+            }
+            cookies = list.toArray(new Cookie[0]);
+        }
+        return cookies.length == 0 ? null : cookies.clone();
+    }
+
+    /** Accept-Language tags by descending q, or the server default locale. */
+    public Enumeration<Locale> getLocales() {
+        String header = getHeader("Accept-Language");
+        List<Locale> locales = new ArrayList<>();
+        if (header != null) {
+            try {
+                for (LanguageRange range : LanguageRange.parse(header)) {
+                    if (!range.getRange().equals("*")) {
+                        locales.add(Locale.forLanguageTag(range.getRange()));
+                    }
+                }
+            } catch (IllegalArgumentException ignored) {
+                // malformed header: fall back to the default
+            }
+        }
+        if (locales.isEmpty()) {
+            locales.add(Locale.getDefault());
+        }
+        return Collections.enumeration(locales);
+    }
+
+    public Locale getLocale() {
+        return getLocales().nextElement();
+    }
+
+    private InetSocketAddress remote() {
+        if (remote == null && loop != null && fd >= 0) {
+            remote = loop.address(fd, true);
+        }
+        return remote;
+    }
+
+    private InetSocketAddress local() {
+        if (local == null && loop != null && fd >= 0) {
+            local = loop.address(fd, false);
+        }
+        return local;
+    }
+
+    public String getRemoteAddr() {
+        InetSocketAddress a = remote();
+        return a == null ? null : a.getAddress().getHostAddress();
+    }
+
+    /**
+     * The address, not a reverse lookup (like Tomcat's default
+     * enableLookups=false).
+     */
+    public String getRemoteHost() {
+        return getRemoteAddr();
+    }
+
+    public int getRemotePort() {
+        InetSocketAddress a = remote();
+        return a == null ? -1 : a.getPort();
+    }
+
+    public String getLocalAddr() {
+        InetSocketAddress a = local();
+        return a == null ? null : a.getAddress().getHostAddress();
+    }
+
+    public String getLocalName() {
+        return getLocalAddr();
+    }
+
+    public int getLocalPort() {
+        InetSocketAddress a = local();
+        return a == null ? -1 : a.getPort();
+    }
+
+    /** Host header without the port, else the local address. */
+    public String getServerName() {
+        String host = getHeader("Host");
+        if (host == null || host.isEmpty()) {
+            return getLocalName();
+        }
+        int colon = host.startsWith("[") ? host.indexOf("]:") + 1 : host.lastIndexOf(':');
+        return colon > 0 ? host.substring(0, colon) : host;
+    }
+
+    public int getServerPort() {
+        String host = getHeader("Host");
+        if (host == null || host.isEmpty()) {
+            return getLocalPort();
+        }
+        int colon = host.startsWith("[") ? host.indexOf("]:") + 1 : host.lastIndexOf(':');
+        if (colon <= 0) {
+            return 80;
+        }
+        try {
+            return Integer.parseInt(host.substring(colon + 1));
+        } catch (NumberFormatException e) {
+            return 80;
+        }
+    }
+
+    public StringBuffer getRequestURL() {
+        StringBuffer url = new StringBuffer("http://").append(getServerName());
+        int port = getServerPort();
+        if (port != 80) {
+            url.append(':').append(port);
+        }
+        return url.append(getRequestURI());
+    }
+
+    public boolean isSecure() {
+        return false;
+    }
+
+    public DispatcherType getDispatcherType() {
+        return dispatcherType;
+    }
+
+    public HttpServletMapping getHttpServletMapping() {
+        String path = getServletPath();
+        String value = switch (match) {
+            case EXACT -> path.substring(1);
+            case PATH -> {
+                String info = getPathInfo();
+                yield info == null ? "" : info.substring(1);
+            }
+            default -> "";
+        };
+        MappingMatch m = match;
+        String p = pattern;
+        String name = servletName;
+        return new HttpServletMapping() {
+            public String getMatchValue() {
+                return value;
+            }
+
+            public String getPattern() {
+                return p;
+            }
+
+            public String getServletName() {
+                return name;
+            }
+
+            public MappingMatch getMappingMatch() {
+                return m;
+            }
+        };
+    }
+
+    public ServletContext getServletContext() {
+        return response.container().context();
+    }
+
+    /** No request dispatching in this container; the spec allows null. */
+    public RequestDispatcher getRequestDispatcher(String path) {
+        return null;
+    }
+
+    public String getRequestId() {
+        return index + "-" + serial;
+    }
+
+    public String getProtocolRequestId() {
+        return "";
+    }
+
+    public ServletConnection getServletConnection() {
+        return connection;
+    }
+
+    public String getPathTranslated() {
+        return null;
+    }
+
+    public String getAuthType() {
+        return null;
+    }
+
+    public String getRemoteUser() {
+        return null;
+    }
+
+    public Principal getUserPrincipal() {
+        return null;
+    }
+
+    public boolean isUserInRole(String role) {
+        return false;
+    }
+
+    /** No login mechanism is configured: the request stays unauthenticated. */
+    public boolean authenticate(HttpServletResponse res) throws IOException {
+        res.sendError(401);
+        return false;
+    }
+
+    public void login(String user, String password) throws ServletException {
+        throw new ServletException("no login mechanism configured");
+    }
+
+    public void logout() {}
+
+    /** No sessions: there is never a current one, and none can be created. */
+    public HttpSession getSession(boolean create) {
+        if (create) {
+            throw new IllegalStateException("sessions are not supported");
+        }
+        return null;
+    }
+
+    public HttpSession getSession() {
+        return getSession(true);
+    }
+
+    public String getRequestedSessionId() {
+        return null;
+    }
+
+    public boolean isRequestedSessionIdValid() {
+        return false;
+    }
+
+    public boolean isRequestedSessionIdFromCookie() {
+        return false;
+    }
+
+    public boolean isRequestedSessionIdFromURL() {
+        return false;
+    }
+
+    public String changeSessionId() {
+        throw new IllegalStateException("no session");
+    }
+
+    /**
+     * No multipart configuration on any servlet, which the spec answers with
+     * IllegalStateException.
+     */
+    public Collection<Part> getParts() {
+        throw new IllegalStateException("no multipart configuration");
+    }
+
+    public Part getPart(String name) {
+        throw new IllegalStateException("no multipart configuration");
+    }
+
+    /** Chunked trailers are read and dropped by the parser. */
+    public Map<String, String> getTrailerFields() {
+        return Map.of();
+    }
+
+    public boolean isTrailerFieldsReady() {
+        return true;
+    }
+
+    /** Server push is HTTP/2 only; the spec answers null when it is unavailable. */
+    @Deprecated
+    public PushBuilder newPushBuilder() {
+        return null;
+    }
+
+    public <T extends HttpUpgradeHandler> T upgrade(Class<T> handler) throws ServletException {
+        throw new ServletException("protocol upgrade is not supported");
     }
 }

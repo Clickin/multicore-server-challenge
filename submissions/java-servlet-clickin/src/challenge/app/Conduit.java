@@ -7,12 +7,12 @@ import challenge.BcryptPool;
 import challenge.app.ApiServlet.Ops;
 import challenge.app.Inputs.Body;
 import challenge.app.Inputs.Invalid;
-import challenge.http.Task;
 import challenge.pg.PgDispatcher;
 import challenge.servlet.Container;
 import challenge.servlet.Request;
 import challenge.servlet.Response;
 import jakarta.servlet.AsyncContext;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -215,27 +215,34 @@ public final class Conduit {
     }
 
     /**
-     * {@code GET /__async}: completes an async request from a loop task (used
-     * by the HTTP smoke test).
+     * {@code GET /__async}: completes an async request from {@code
+     * AsyncContext.start}, or with {@code ?dispatch} re-dispatches it and
+     * answers from the ASYNC dispatch (used by the HTTP smoke test).
      */
     static final class AsyncProbeServlet extends HttpServlet {
-        protected void doGet(HttpServletRequest req, HttpServletResponse res) {
+        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
+            if (req.getDispatcherType() == DispatcherType.ASYNC) {
+                res.setContentType("text/plain");
+                res.getWriter().print("dispatched");
+                return;
+            }
             AsyncContext async = req.startAsync();
-            Request.of(req)
-                    .loop()
-                    .post(new Task() {
-                        public void run() {
-                            async.complete();
-                        }
-                    });
+            if (req.getQueryString() != null && req.getQueryString().equals("dispatch")) {
+                async.start(async::dispatch);
+            } else {
+                async.start(async::complete);
+            }
         }
     }
 
-    /** {@code POST /__echo}: writes the request body back. */
+    /**
+     * {@code POST /__echo}: writes the request body back, and the peer address
+     * and local port as {@code X-Remote}.
+     */
     static final class EchoServlet extends HttpServlet {
         protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
-            Request r = Request.of(req);
-            res.getOutputStream().write(r.bytes(), r.bodyOffset(), r.bodyLength());
+            res.setHeader("X-Remote", req.getRemoteAddr() + " " + req.getLocalPort());
+            req.getInputStream().transferTo(res.getOutputStream());
         }
     }
 
