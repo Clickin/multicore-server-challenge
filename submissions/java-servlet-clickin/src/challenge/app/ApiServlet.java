@@ -6,137 +6,54 @@ import java.util.Arrays;
 import challenge.WordTable;
 import challenge.app.Conduit.Services;
 import challenge.app.Op.Auth;
-import challenge.pg.Query;
 import challenge.servlet.Direct;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Base for the API servlets: picks the {@link Op} for the request from a
- * per-method {@link Ops} table, authenticates, and hands the servlet a pooled
- * {@link Call}. The servlet binds and submits the op's work in {@link #handle}
- * and writes the response from the result in {@link #finish}.
+ * Base for the API servlets: the shared {@link Services}, {@link #begin} for
+ * the request's op and pooled {@link Call}, and {@link Ops}, the path table
+ * each servlet keeps per HTTP method. The servlets override {@code doGet},
+ * {@code doPost}, ... themselves, so {@link HttpServlet} answers 405 and {@code
+ * Allow} for the rest.
  */
 abstract class ApiServlet extends HttpServlet {
     final Services services;
-    private final Ops get;
-    private final Ops post;
-    private final Ops put;
-    private final Ops delete;
 
-    /** A null table leaves that method to {@link HttpServlet}, which answers 405. */
-    ApiServlet(Services services, Ops get, Ops post,
-               Ops put, Ops delete) {
+    ApiServlet(Services services) {
         this.services = services;
-        this.get = get;
-        this.post = post;
-        this.put = put;
-        this.delete = delete;
     }
 
     /**
-     * Reads the op's inputs, binds them to the query from {@link Call#start} and
-     * submits; or sends an error response.
+     * The table for {@code method} (HEAD is GET's), or null when the servlet
+     * does not handle it; for tests.
      */
-    abstract void handle(Op op, Direct req, Call call,
-                         HttpServletResponse res)
-            throws IOException;
+    abstract Ops table(String method);
 
     /**
-     * On the request's loop once the submitted work succeeded: submits the next
-     * step, or writes the response and completes the async request. {@code q} is
-     * the op's own query.
+     * Looks up the request's op in {@code ops}, authenticates for it and returns
+     * the exchange's pooled call reset for it; or sends 404 or 401 and returns
+     * null.
      */
-    abstract void finish(Op op, Call call, Query q);
-
-    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        if (get == null) {
-            super.doGet(req, res);
-        } else {
-            run(get, req, res);
-        }
-    }
-
-    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        if (post == null) {
-            super.doPost(req, res);
-        } else {
-            run(post, req, res);
-        }
-    }
-
-    protected void doPut(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        if (put == null) {
-            super.doPut(req, res);
-        } else {
-            run(put, req, res);
-        }
-    }
-
-    protected void doDelete(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        if (delete == null) {
-            super.doDelete(req, res);
-        } else {
-            run(delete, req, res);
-        }
-    }
-
-    /**
-     * Allow lists the methods that have a table (HttpServlet's reflection would
-     * list all four).
-     */
-    protected void doOptions(HttpServletRequest req, HttpServletResponse res) {
-        StringBuilder allow = new StringBuilder(get == null ? "" : "GET, HEAD, ");
-        allow.append(post == null ? "" : "POST, ")
-             .append(put == null ? "" : "PUT, ")
-             .append(delete == null ? "" : "DELETE, ")
-             .append("OPTIONS, TRACE");
-        res.setHeader("Allow", allow.toString());
-    }
-
-    /** The op for the request's method and path, or null; for tests. */
-    Op op(HttpServletRequest req) {
-        Ops ops = switch (req.getMethod()) {
-            case "GET", "HEAD" -> get;
-            case "POST" -> post;
-            case "PUT" -> put;
-            case "DELETE" -> delete;
-            default -> null;
-        };
-        return ops == null ? null : ops.find(Direct.of(req));
-    }
-
-    /** True when the method has a table; for tests. */
-    boolean allows(String method) {
-        return switch (method) {
-            case "GET", "HEAD" -> get != null;
-            case "POST" -> post != null;
-            case "PUT" -> put != null;
-            case "DELETE" -> delete != null;
-            default -> false;
-        };
-    }
-
-    private void run(Ops ops, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        Direct req = Direct.of(request);
-        Op op = ops.find(req);
+    Call begin(Ops ops, HttpServletRequest req, HttpServletResponse res) throws IOException {
+        Direct r = Direct.of(req);
+        Op op = ops.find(r);
         if (op == null) {
-            response.sendError(404, "not found");
-            return;
+            res.sendError(404, "not found");
+            return null;
         }
-        Call call = Call.of(req, services);
         long viewer = 0;
         if (op.auth != Auth.NONE) {
-            viewer = Inputs.viewer(req, req.local(services.jwt()), op.auth == Auth.REQUIRED);
+            viewer = Inputs.viewer(r, r.local(services.jwt()), op.auth == Auth.REQUIRED);
             if (viewer < 0) {
-                response.sendError(401, "unauthorized");
-                return;
+                res.sendError(401, "unauthorized");
+                return null;
             }
         }
-        call.reset(this, op, request, req, response, viewer);
-        handle(op, req, call, response);
+        Call call = Call.of(r, services);
+        call.reset(op, req, r, res, viewer);
+        return call;
     }
 
     /**

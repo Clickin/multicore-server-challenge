@@ -18,11 +18,16 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * One request's database and bcrypt work, pooled per connection exchange. The
- * servlet binds the op's statement from {@link #start} and submits it; when the
- * work is done {@link #run} hands the result back to the servlet's {@link
- * ApiServlet#finish} on the loop thread.
+ * servlet binds the op's statement from {@link #start} and submits it with what
+ * to do next; when the work is done {@link #run} calls that on the loop thread.
  */
 final class Call implements Runnable, Completions, Callback {
+    /** What the servlet does with finished work: submit the next step, or respond. */
+    @FunctionalInterface
+    interface Then {
+        void done(Call call, Query q);
+    }
+
     final Direct request;
     final Services services;
     final Query query = new Query(0, false);
@@ -32,11 +37,11 @@ final class Call implements Runnable, Completions, Callback {
     final Unit unit;
     final Params params = new Params();
     final byte[] signed = new byte[256];
-    ApiServlet servlet;
     HttpServletRequest httpRequest;
     HttpServletResponse response;
     AsyncContext async;
     Op op;
+    Then then;
 
     /** The submitted work is bcrypt's, not the database's. */
     boolean hashing;
@@ -71,9 +76,8 @@ final class Call implements Runnable, Completions, Callback {
         return call;
     }
 
-    void reset(ApiServlet servlet, Op op, HttpServletRequest httpRequest,
-               Direct req, HttpServletResponse response, long viewer) {
-        this.servlet = servlet;
+    void reset(Op op, HttpServletRequest httpRequest, Direct req,
+               HttpServletResponse response, long viewer) {
         this.op = op;
         this.httpRequest = httpRequest;
         this.response = response;
@@ -90,7 +94,7 @@ final class Call implements Runnable, Completions, Callback {
 
     /**
      * Goes async and prepares the op's statement as the unit's only query; the
-     * servlet binds the returned query and submits.
+     * servlet binds the returned query and submits it.
      */
     Query start() {
         async = httpRequest.startAsync();
@@ -119,17 +123,22 @@ final class Call implements Runnable, Completions, Callback {
         return secondary;
     }
 
-    /** Sends the bound queries to the database. */
-    void submit() {
+    /**
+     * Sends the bound queries to the database; {@code then} gets the op's own
+     * query.
+     */
+    void submit(Then then) {
+        this.then = then;
         hashing = false;
         services.dispatcher().submit(unit);
     }
 
     /**
      * Hashes {@code password}, or checks it against {@code unit.bcryptHash} when
-     * that is set.
+     * that is set; {@code then} reads the outcome from {@link #unit}.
      */
-    void bcrypt(String password) {
+    void bcrypt(String password, Then then) {
+        this.then = then;
         hashing = true;
         unit.bcryptPassword = password;
         services.bcrypt().submit(unit);
@@ -158,7 +167,7 @@ final class Call implements Runnable, Completions, Callback {
             }
             return;
         }
-        servlet.finish(op, this, query);
+        then.done(this, query);
     }
 
     /** Sets the JSON content type and returns the body writer. */

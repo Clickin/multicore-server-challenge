@@ -2,6 +2,7 @@ package challenge.app;
 
 import java.nio.charset.StandardCharsets;
 
+import challenge.app.ApiServlet.Ops;
 import challenge.app.Conduit.Services;
 import challenge.servlet.Container;
 import challenge.servlet.Request;
@@ -54,7 +55,8 @@ public final class RouteTest {
         if (!(servlet instanceof ApiServlet api)) {
             return null;
         }
-        return api.allows(r.getMethod()) ? api.op(r) : NOT_ALLOWED;
+        Ops table = api.table(method.equals("HEAD") ? "GET" : method);
+        return table == null ? NOT_ALLOWED : table.find(r);
     }
 
     private static void check(String method, String path, Object expected) {
